@@ -16,8 +16,8 @@ from pyopencl import CompilerWarning
 # Supress compiler warnings for non GPU devices
 warnings.filterwarnings("ignore", category=CompilerWarning)
 
-# Load the .lif file
-data_dir = Path(__file__).parent.resolve() / "data"
+# Load the .lif file based on the path to the data directory relative to the script location
+data_dir = Path(__file__).parent.resolve() / "data_raw"
 lif_path = LifFile(
     data_dir / "Sample_Confocals_Oversampled" / "JF503_Lifeact_1000Hz_Analog.lif"
 )
