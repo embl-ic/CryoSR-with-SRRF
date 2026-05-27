@@ -7,6 +7,7 @@ import numpy as np
 from nanopyx import eSRRF
 from readlif.reader import LifFile
 from matplotlib import pyplot as plt
+from pathlib import Path
 
 # For non GPU devices
 import warnings
@@ -16,8 +17,9 @@ from pyopencl import CompilerWarning
 warnings.filterwarnings("ignore", category=CompilerWarning)
 
 # Load the .lif file
+data_dir = Path(__file__).parent.resolve() / "data"
 lif_path = LifFile(
-    r"C:\Users\jake\Desktop\EMBL_Lab\data_raw\Sample_Confocals_Oversampled\JF503_Lifeact_1000Hz_Analog.lif"
+    data_dir / "Sample_Confocals_Oversampled" / "JF503_Lifeact_1000Hz_Analog.lif"
 )
 img_object = lif_path.get_image(0)
 
