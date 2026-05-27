@@ -1,4 +1,13 @@
 # pixi environments
 .pixi/*
 !.pixi/config.toml
-_pycache_
+
+# Python cache
+__pycache__/*
+
+# VSCode settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
