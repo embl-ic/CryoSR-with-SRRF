@@ -9,9 +9,15 @@ from readlif.reader import LifFile
 from matplotlib import pyplot as plt
 from pathlib import Path
 
-# For non GPU devices
+# Optional: Set up logging tools to track preformance
 import warnings
+import inspect
 from pyopencl import CompilerWarning
+
+inspect.getfullargspec(eSRRF)
+
+# For non GPU devices
+
 
 # Supress compiler warnings for non GPU devices
 warnings.filterwarnings("ignore", category=CompilerWarning)
