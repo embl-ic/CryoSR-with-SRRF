@@ -33,7 +33,7 @@ num_timepoints = img_object.dims.t
 frames_stack = []
 
 # Append each frame to list
-for t in range(num_timepoints - 990):
+for t in range(num_timepoints):
     frame = img_object.get_frame(t=t)
     frames_stack.append(frame)
 
@@ -47,7 +47,7 @@ reference_image = np.mean(img_stack, axis=0)
 magnification = 5  # Adjust for microscope magnification and pixel size
 ring_radius = 1.5  # Officially calculated in deconvolution
 sensitivity = 1.0  # Adjust based on noise level and desired resolution enhancement
-frames_per_timepoint = 10  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
+frames_per_timepoint = 1000  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
 temporal_correlation = "AVG"  # Temporal correlation method ('AVG', 'VAR', or 'TAC2')
 do_intensity_weighting = True
 
@@ -73,5 +73,6 @@ ax2.imshow(esrrf_result, cmap="gray")
 ax2.set_title(f"eSRRF Super-Resolution Image (Average of {frames_per_timepoint} Frames")
 ax2.axis("off")
 
-plt.tight_layout()
-plt.show()
+plt.savefig("eSRRF_result.png", dpi=300, bbox_inches="tight")
+#plt.tight_layout()
+#plt.show()
