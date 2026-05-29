@@ -16,8 +16,7 @@ from pyopencl import CompilerWarning
 
 inspect.getfullargspec(eSRRF)
 
-# For non GPU devices
-
+# For non GPU devicesgit
 
 # Supress compiler warnings for non GPU devices
 warnings.filterwarnings("ignore", category=CompilerWarning)

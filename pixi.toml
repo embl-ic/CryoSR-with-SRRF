@@ -33,6 +33,7 @@ vc14_runtime = "14.44.35208.*"
 vs2015_runtime = "14.44.35208.*"
 
 [target.linux-64.dependencies]
+cupy = ">=14.1.0,<15"
 
 [pypi-dependencies]
 anyio = "==4.13.0"
