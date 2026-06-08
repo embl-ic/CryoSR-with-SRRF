@@ -13,6 +13,9 @@ import nanopyx.methods.esrrf.parameter_sweep as psweep
 from pathlib import Path
 import sys
 
+# Set numebr of frames to temporally correlate
+n_frames = 250
+
 # Supress compiler warnings for non GPU devices
 import warnings
 from pyopencl import CompilerWarning
@@ -22,6 +25,7 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 # Set up paralel processing for eSRRF (comment out when not using HPC)
 corr = sys.argv[1] if len(sys.argv) > 1 else "AVG"
 print(f"Using temporal correlation method: {corr}...")
+
 
 # Load the .lif file based on the path to the data directory relative to the script location
 data_dir = Path(__file__).parent.resolve() / "data_raw"
@@ -49,7 +53,7 @@ drif_est = DriftEstimator()
 
 # Enforce first correction
 img_stack_corrected = drif_est.estimate(
-    img_stack, apply=True, ref_option=0, time_averaging=10
+    img_stack, apply=True, ref_option=0, time_averaging=2
 )
 img_corrected = np.mean(img_stack_corrected, axis=0)
 
@@ -76,19 +80,21 @@ plt.savefig("driftcorrection.png", dpi=300, bbox_inches="tight")
 # plt.show()
 
 # Execute a parameter sweep to optimize the drift correction parameters for the given dataset
-sensitivities, radii = psweep.run_esrrf_parameter_sweep(
+sensitivities, radii, qnr = psweep.run_esrrf_parameter_sweep(
     img_stack_corrected,
     magnification=5,
-    sensitivities=[1, 1.5, 2, 2.5, 3, 3.5, 4],
-    radii=[1, 1.5, 2, 2.5, 3, 3.5, 4],
+    sensitivities=[1, 2, 3, 4],
+    radii=[1, 2, 3, 4],
     temporal_correlation=corr,
     plot_sweep=True,
-    n_frames=250
+    n_frames=n_frames,
 )
 
 print(
     f"Selecting sensitivity {sensitivities} and ring radius {radii} for eSRRF reconstruction..."
 )
+
+print(f"Maximum QnR value from parameter sweep: {qnr:.2f}...")
 
 # Average an the image stack to get a reference image for visualization
 reference_image = np.mean(img_stack, axis=0)
@@ -97,7 +103,7 @@ reference_image = np.mean(img_stack, axis=0)
 magnification = 5  # Adjust for subpixel resoltion
 ring_radius = radii  # Officially calculated in parameter sweep
 sensitivity = sensitivities  # Officially calcualted in parameter sweep
-frames_per_timepoint = 250  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
+frames_per_timepoint = n_frames  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
 temporal_correlation = corr  # Temporal correlation method ('AVG', 'VAR', or 'TAC2')
 do_intensity_weighting = True
 
@@ -109,7 +115,7 @@ esrrf_result = eSRRF(
     sensitivity,
     frames_per_timepoint,
     temporal_correlation,
-    do_intensity_weighting
+    do_intensity_weighting,
 )
 
 # Display the resulting super-resolution image
