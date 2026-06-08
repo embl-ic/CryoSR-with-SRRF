@@ -83,6 +83,7 @@ sensitivities, radii = psweep.run_esrrf_parameter_sweep(
     radii=[1, 1.5, 2, 2.5, 3, 3.5, 4],
     temporal_correlation=corr,
     plot_sweep=True,
+    n_frames=250
 )
 
 print(
@@ -96,7 +97,7 @@ reference_image = np.mean(img_stack, axis=0)
 magnification = 5  # Adjust for subpixel resoltion
 ring_radius = radii  # Officially calculated in parameter sweep
 sensitivity = sensitivities  # Officially calcualted in parameter sweep
-frames_per_timepoint = 500  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
+frames_per_timepoint = 250  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
 temporal_correlation = corr  # Temporal correlation method ('AVG', 'VAR', or 'TAC2')
 do_intensity_weighting = True
 
@@ -108,8 +109,7 @@ esrrf_result = eSRRF(
     sensitivity,
     frames_per_timepoint,
     temporal_correlation,
-    do_intensity_weighting,
-    _force_run_type="opencl",
+    do_intensity_weighting
 )
 
 # Display the resulting super-resolution image
