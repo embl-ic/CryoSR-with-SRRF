@@ -3,23 +3,14 @@
 # 5/22/2026
 
 # Load the necessary libraries
-import matplotlib
 import numpy as np
 from nanopyx.methods.esrrf.eSRRF_workflow import eSRRF
 from readlif.reader import LifFile
 from matplotlib import pyplot as plt
 from nanopyx.methods.drift_alignment import DriftEstimator
-import nanopyx.methods.esrrf.parameter_sweep as psweep
+from custom_sweep import run_esrrf_parameter_sweep as psweep
 from pathlib import Path
 import sys
-
-# Set number of frames to temporally correlate
-start = 0
-end = 250
-n_frames = end - start
-
-# Set number of frames to average for drift correction
-n_est = 10
 
 # Supress compiler warnings for non GPU devices
 import warnings
@@ -27,10 +18,21 @@ from pyopencl import CompilerWarning
 
 warnings.filterwarnings("ignore", category=CompilerWarning)
 
+# Set number of frames to temporally correlate
+start = 0
+end = 10
+n_frames = end - start
+
+# Set number of frames to average for drift correction
+n_est = 2
+
+# Set magnificaiton (subpixel resolution)
+mag = 2
+
 # Set up paralel processing for eSRRF (comment out when not using HPC)
 corr = sys.argv[1] if len(sys.argv) > 1 else "AVG"
 print(f"Using temporal correlation method: {corr}...")
-
+corr = "AVG"
 # Load the .lif file based on the path to the data directory relative to the script location
 data_dir = Path(__file__).parent.resolve() / "data_raw"
 lif_path = LifFile(
@@ -84,9 +86,9 @@ plt.savefig("driftcorrection.png", dpi=300, bbox_inches="tight")
 # plt.show()
 
 # Execute a parameter sweep to optimize the drift correction parameters for the given dataset
-sensitivities, radii, qnr = psweep.run_esrrf_parameter_sweep(
+sensitivities, radii, qnr = psweep(
     img_stack_corrected,
-    magnification=5,
+    magnification=mag,
     sensitivities=[1, 2, 3, 4],
     radii=[1, 2, 3, 4],
     temporal_correlation=corr,
@@ -103,7 +105,7 @@ print(f"Maximum QnR value from parameter sweep: {qnr:.2f}...")
 reference_image = np.mean(img_stack, axis=0)
 
 # Set the parameters for eSRRF
-magnification = 5  # Adjust for subpixel resoltion
+magnification = mag  # Adjust for subpixel resoltion
 ring_radius = radii  # Officially calculated in parameter sweep
 sensitivity = sensitivities  # Officially calcualted in parameter sweep
 frames_per_timepoint = n_frames  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
@@ -125,12 +127,12 @@ esrrf_result = eSRRF(
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 10))
 
 ax1.imshow(reference_image, cmap="gray")
-ax1.set_title(f"Reference Image (Average of {num_timepoints} Frames)")
+ax1.set_title(f"Reference Image (Average of {n_frames} Frames)")
 ax1.axis("off")
 
 ax2.imshow(esrrf_result, cmap="gray")
 ax2.set_title(
-    f"eSRRF Frames: {frames_per_timepoint} , Ring Radius: {radii}, Sensitivity: {sensitivities}, Correlation: {corr}"
+    f"eSRRF Frames: {n_frames} , Ring Radius: {radii}, Sensitivity: {sensitivities}, Correlation: {corr}"
 )
 ax2.axis("off")
 
