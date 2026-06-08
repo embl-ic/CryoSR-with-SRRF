@@ -13,8 +13,13 @@ import nanopyx.methods.esrrf.parameter_sweep as psweep
 from pathlib import Path
 import sys
 
-# Set numebr of frames to temporally correlate
-n_frames = 250
+# Set number of frames to temporally correlate
+start = 0
+end = 250
+n_frames = end - start
+
+# Set number of frames to average for drift correction
+n_est = 10
 
 # Supress compiler warnings for non GPU devices
 import warnings
@@ -25,7 +30,6 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 # Set up paralel processing for eSRRF (comment out when not using HPC)
 corr = sys.argv[1] if len(sys.argv) > 1 else "AVG"
 print(f"Using temporal correlation method: {corr}...")
-
 
 # Load the .lif file based on the path to the data directory relative to the script location
 data_dir = Path(__file__).parent.resolve() / "data_raw"
@@ -39,8 +43,8 @@ img_object = lif_path.get_image(0)
 num_timepoints = img_object.dims.t
 frames_stack = []
 
-# Append each frame to list
-for t in range(num_timepoints):
+# Append a predefined number of frames to stack
+for t in range(start, end):
     frame = img_object.get_frame(t=t)
     frames_stack.append(frame)
 
@@ -53,7 +57,7 @@ drif_est = DriftEstimator()
 
 # Enforce first correction
 img_stack_corrected = drif_est.estimate(
-    img_stack, apply=True, ref_option=0, time_averaging=2
+    img_stack, apply=True, ref_option=0, time_averaging=n_est
 )
 img_corrected = np.mean(img_stack_corrected, axis=0)
 
@@ -87,7 +91,6 @@ sensitivities, radii, qnr = psweep.run_esrrf_parameter_sweep(
     radii=[1, 2, 3, 4],
     temporal_correlation=corr,
     plot_sweep=True,
-    n_frames=n_frames,
 )
 
 print(
@@ -127,7 +130,7 @@ ax1.axis("off")
 
 ax2.imshow(esrrf_result, cmap="gray")
 ax2.set_title(
-    f"eSRRF Frames:{frames_per_timepoint} , Ring Radius: {radii}, Sensitivity: {sensitivities}, Correlation: {corr}"
+    f"eSRRF Frames: {frames_per_timepoint} , Ring Radius: {radii}, Sensitivity: {sensitivities}, Correlation: {corr}"
 )
 ax2.axis("off")
 
