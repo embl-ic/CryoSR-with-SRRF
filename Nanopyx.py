@@ -10,7 +10,6 @@ from matplotlib import pyplot as plt
 from nanopyx.methods.drift_alignment import DriftEstimator
 from custom_sweep import run_esrrf_parameter_sweep as psweep
 from pathlib import Path
-import sys
 
 # Supress compiler warnings for non GPU devices
 import warnings
@@ -20,19 +19,18 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 
 # Set number of frames to temporally correlate
 start = 0
-end = 10
+end = 250
 n_frames = end - start
 
 # Set number of frames to average for drift correction
-n_est = 2
+n_est = 10
 
 # Set magnificaiton (subpixel resolution)
-mag = 2
+mag = 5
 
-# Set up paralel processing for eSRRF (comment out when not using HPC)
-corr = sys.argv[1] if len(sys.argv) > 1 else "AVG"
-print(f"Using temporal correlation method: {corr}...")
+# Chose method of temporal correlation
 corr = "AVG"
+
 # Load the .lif file based on the path to the data directory relative to the script location
 data_dir = Path(__file__).parent.resolve() / "data_raw"
 lif_path = LifFile(
@@ -68,7 +66,6 @@ resid = img_corrected - img_uncorrected
 
 # Display the resulting super-resolution image
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 10))
-
 ax1.imshow(img_uncorrected, cmap="gray")
 ax1.set_title("Average Uncorrected Stack")
 ax1.axis("off")
@@ -82,15 +79,15 @@ ax3.cbar = plt.colorbar(im, ax=ax3, fraction=0.046, pad=0.04)
 ax3.set_title("Residual Drift")
 ax3.axis("off")
 
-plt.savefig("driftcorrection.png", dpi=300, bbox_inches="tight")
+plt.savefig(f"drift_{n_frames}frames_{mag}mag_{corr}.png", dpi=300, bbox_inches="tight")
 # plt.show()
 
 # Execute a parameter sweep to optimize the drift correction parameters for the given dataset
 sensitivities, radii, qnr = psweep(
     img_stack_corrected,
     magnification=mag,
-    sensitivities=[1, 2, 3, 4],
-    radii=[1, 2, 3, 4],
+    sensitivities=[1, 2, 3, 4, 5],
+    radii=[1, 2, 3, 4, 5],
     temporal_correlation=corr,
     plot_sweep=True,
 )
@@ -136,5 +133,5 @@ ax2.set_title(
 )
 ax2.axis("off")
 
-plt.savefig("eSRRF.png", dpi=300, bbox_inches="tight")
+plt.savefig(f"eSRRF_{n_frames}frames_{radii}radii_{sensitivities}sens_{mag}mag_{corr}.png", dpi=300, bbox_inches="tight")
 # plt.show()
