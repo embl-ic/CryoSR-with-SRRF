@@ -9,6 +9,7 @@ from readlif.reader import LifFile
 from matplotlib import pyplot as plt
 from nanopyx.methods.drift_alignment import DriftEstimator
 from custom_sweep import run_esrrf_parameter_sweep as psweep
+from post_analysis import analyze
 from pathlib import Path
 
 # Supress compiler warnings for non GPU devices
@@ -19,14 +20,16 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 
 # Set number of frames to temporally correlate
 start = 0
-end = 250
-n_frames = end - start
+end = 100
+
+# Batch frames for
+n_frames = 50
 
 # Set number of frames to average for drift correction
-n_est = 10
+n_est = 5
 
 # Set magnificaiton (subpixel resolution)
-mag = 5
+mag = 3
 
 # Chose method of temporal correlation
 corr = "AVG"
@@ -34,10 +37,13 @@ corr = "AVG"
 # Load the .lif file based on the path to the data directory relative to the script location
 data_dir = Path(__file__).parent.resolve() / "data_raw"
 lif_path = LifFile(
-    data_dir / "Sample_Confocals_Oversampled" / "JF503_Lifeact_1000Hz_Analog.lif"
+    data_dir
+    / "SUM_159_V1_28_5_2026"
+    / "SUM159_LifeAct_JF571_Grid1_oversampled_stacks.lif"
 )
 
-img_object = lif_path.get_image(0)
+# Extract a specific series from the .lif file
+img_object = lif_path.get_image(6)
 
 # Extarct frames as a z stack
 num_timepoints = img_object.dims.t
@@ -79,24 +85,27 @@ ax3.cbar = plt.colorbar(im, ax=ax3, fraction=0.046, pad=0.04)
 ax3.set_title("Residual Drift")
 ax3.axis("off")
 
-plt.savefig(f"drift_{n_frames}frames_{mag}mag_{corr}.png", dpi=300, bbox_inches="tight")
-# plt.show()
+# plt.savefig(f"drift_{n_frames}frames_{mag}mag_{corr}.png", dpi=300, bbox_inches="tight")
+plt.show()
 
 # Execute a parameter sweep to optimize the drift correction parameters for the given dataset
-sensitivities, radii, qnr = psweep(
+sensitivities, radii, qnr, out_array = psweep(
     img_stack_corrected,
     magnification=mag,
-    sensitivities=[1, 2, 3, 4, 5],
-    radii=[1, 2, 3, 4, 5],
+    sensitivities=[1, 2],
+    radii=[1, 2],
     temporal_correlation=corr,
     plot_sweep=True,
+    return_qnr=True,
+    n_frames=n_frames,
 )
 
 print(
     f"Selecting sensitivity {sensitivities} and ring radius {radii} for eSRRF reconstruction..."
 )
-
 print(f"Maximum QnR value from parameter sweep: {qnr:.2f}...")
+print(out_array)
+
 
 # Average an the image stack to get a reference image for visualization
 reference_image = np.mean(img_stack, axis=0)
@@ -118,20 +127,28 @@ esrrf_result = eSRRF(
     frames_per_timepoint,
     temporal_correlation,
     do_intensity_weighting,
+    _force_run_type="opencl",
 )
 
 # Display the resulting super-resolution image
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 10))
 
 ax1.imshow(reference_image, cmap="gray")
-ax1.set_title(f"Reference Image (Average of {n_frames} Frames)")
+ax1.set_title(f"Reference Image (Average of {end - start} Frames)")
 ax1.axis("off")
 
-ax2.imshow(esrrf_result, cmap="gray")
+ax2.imshow(esrrf_result[0], cmap="gray")
 ax2.set_title(
-    f"eSRRF Frames: {n_frames} , Ring Radius: {radii}, Sensitivity: {sensitivities}, Correlation: {corr}"
+    f"eSRRF Frames: {n_frames} , Ring Radius: {ring_radius}, Sensitivity: {sensitivity}, Correlation: {corr}, Magnification: {magnification}"
 )
 ax2.axis("off")
 
-plt.savefig(f"eSRRF_{n_frames}frames_{radii}radii_{sensitivities}sens_{mag}mag_{corr}.png", dpi=300, bbox_inches="tight")
-# plt.show()
+# plt.savefig(f"eSRRF_{n_frames}frames_{ring_radius}radii_{sensitivity}sens_{magnification}mag_{corr}.png", dpi=300, bbox_inches="tight")
+plt.show()
+print(
+    f"eSRRF_{n_frames}frames_{ring_radius}radii_{sensitivity}sens_{magnification}mag_{corr}.png"
+)
+
+# Run post imaging analysis
+frc, decor = analyze(reference_image, esrrf_result, plot_error=True)
+print(f"FRC resolution: {frc} \n Decorrelation analysis: {decor}")

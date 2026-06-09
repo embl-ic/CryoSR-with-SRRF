@@ -72,12 +72,9 @@ def run_esrrf_parameter_sweep(
         ax.set_xlabel("Radii")
         ax.set_ylabel("Sensitivities")
         fig.tight_layout()
-        plt.savefig(f"sweep.png", dpi=300, bbox_inches="tight")
-        # plt.show()
+        # plt.savefig(f"sweep.png", dpi=300, bbox_inches="tight")
+        plt.show()
 
-    if return_qnr:
-        return out
-    else:
-        sens_idx, rad_idx = np.unravel_index(np.argmax(out), out.shape)
-        qnr = out[sens_idx, rad_idx]
-        return sensitivities[sens_idx], radii[rad_idx], qnr
+    sens_idx, rad_idx = np.unravel_index(np.argmax(out), out.shape)
+    qnr = out[sens_idx, rad_idx]
+    return sensitivities[sens_idx], radii[rad_idx], qnr, out
