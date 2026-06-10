@@ -20,7 +20,7 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 
 # Set number of frames to temporally correlate
 start = 0
-end = 100
+end = 150
 
 # Batch frames for
 n_frames = 50
@@ -29,7 +29,7 @@ n_frames = 50
 n_est = 5
 
 # Set magnificaiton (subpixel resolution)
-mag = 3
+mag = 2
 
 # Chose method of temporal correlation
 corr = "AVG"
@@ -145,10 +145,20 @@ ax2.axis("off")
 
 # plt.savefig(f"eSRRF_{n_frames}frames_{ring_radius}radii_{sensitivity}sens_{magnification}mag_{corr}.png", dpi=300, bbox_inches="tight")
 plt.show()
-print(
-    f"eSRRF_{n_frames}frames_{ring_radius}radii_{sensitivity}sens_{magnification}mag_{corr}.png"
-)
+
+shape = np.shape(esrrf_result)
+print(shape)
 
 # Run post imaging analysis
-frc, decor = analyze(reference_image, esrrf_result, plot_error=True)
-print(f"FRC resolution: {frc} \n Decorrelation analysis: {decor}")
+frc, decor, units = analyze(
+    reference_image,
+    esrrf_result,
+    plot_error=True,
+    pixel_size=180.5,
+    units="nm",
+    frame_1=1,
+    frame_2=2,
+)
+print(
+    f"FRC resolution: {frc:.3f} {units} \nDecorrelation resolution: {decor:.3f} {units}"
+)
