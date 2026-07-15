@@ -64,7 +64,6 @@ def run_esrrf_parameter_sweep(
         ax.imshow(out, cmap="cool")
         ax.set_xticks(np.arange(len(radii)), labels=radii)
         ax.set_yticks(np.arange(len(sensitivities)), labels=sensitivities)
-        print(range(len(sensitivities)), range(len(radii)))
         for i in range(len(sensitivities)):
             for j in range(len(radii)):
                 ax.text(j, i, round(out[i, j], 2), ha="center", va="center", color="w")
