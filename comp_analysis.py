@@ -56,11 +56,13 @@ man_sens_idx1 = None  # Mannual overside for sensitivity setting for movie 1
 man_rad_idx1 = None  # Mannual overide for radii setting fo rmovie 1
 man_sens_idx2 = None  # Mannual overside for sensitivity setting for movie 2
 man_rad_idx2 = None  # Mannual overide for radii setting fo rmovie 2
+sr_idx1 = 0  # If batching, select index of the preferred reconstruction (movie 1)
+sr_idx2 = 0  # If batching, select index of the preferred reconstruction (movie 2)
 
 # Sample batching and slicing
 start = 0  # First frame to include in analysis
-stop = 50  # Last frame to include in analysis
-n_batch = None  # Number of frames for super resolution
+stop = 100  # Last frame to include in analysis
+n_batch = 50  # Number of frames for super resolution
 
 # Save individual plots with descriptive titles and filenames for backreference
 save_png = False
@@ -226,16 +228,30 @@ essrf2_plot = f"{name2}: eSRRF of {movie2_slice.shape[0]} frames | UQnR: {uqnr_s
 avg1_plot = f"{name1}: Temporal Average of {movie1_slice.shape[0]} frames from frame {start} to frame {start + movie1_slice.shape[0]}"
 avg2_plot = f"{name2}: Temporal Average of {movie2_slice.shape[0]} frames from frame {start} to frame {start + movie2_slice.shape[0]}"
 
+# Insert axis if necessary to handle batching
+essrf1 = np.expand_dims(essrf1, axis=0) if essrf1.ndim == 2 else essrf1
+essrf2 = np.expand_dims(essrf2, axis=0) if essrf2.ndim == 2 else essrf2
+
+# Raise Value error for out of bounds indexing
+if essrf1.shape[0] <= sr_idx1 or essrf2.shape[0] <= sr_idx2:
+    raise ValueError(
+        "The selected reconstruction index does not exist"
+        if essrf1.shape[0] != 1
+        else "Cannot select a reconstruction index higher than 0 without batching"
+    )
+
+print(f"Plotting reconstruction index {sr_idx1} for movie 1 and {sr_idx2} for movie 2")
+
 # Plot eSRRF and averages
 figure2, ax = plt.subplots(2, 2, figsize=(16, 16))
 ax = np.ravel(ax)
 
-ax[0].imshow(essrf1, cmap="gray")
+ax[0].imshow(essrf1[sr_idx1], cmap="gray")
 ax[0].axis("off")
 ax[0].set_title(essrf1_plot)
 
 
-ax[1].imshow(essrf2, cmap="gray")
+ax[1].imshow(essrf2[sr_idx2], cmap="gray")
 ax[1].axis("off")
 ax[1].set_title(essrf2_plot)
 
@@ -263,6 +279,7 @@ def save_plot(title, img_data, output):
     plt.tight_layout()
     plt.axis("off")
     plt.savefig(f"{save_dir}/{folder}/{output}", dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 # //? Save Data
@@ -270,7 +287,7 @@ if save_png:
     # Create data dictionary
     data = {
         "names": [essrf1_plot, essrf2_plot, avg1_plot, avg2_plot],
-        "input": [essrf1, essrf2, movie1_avg, movie2_avg],
+        "input": [essrf1[sr_idx1], essrf2[sr_idx2], movie1_avg, movie2_avg],
         "output": [essrf1_output, essrf2_output, avg1_output, avg2_output],
     }
 
