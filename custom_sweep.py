@@ -49,7 +49,7 @@ def run_esrrf_parameter_sweep(
     This function performs a parameter sweep for the ESRRF method, which is used for super-resolution imaging analysis. It varies sensitivity and radius to find optimal settings for image enhancement.
     """
     ps = ParameterSweep()
-    out = ps.run(
+    out, RSP, FRC = ps.run(
         img,
         magnification,
         sensitivity_array=sensitivities,
@@ -75,6 +75,14 @@ def run_esrrf_parameter_sweep(
         # plt.savefig(f"sweep.png", dpi=300, bbox_inches="tight")
         plt.show()
 
+    # Extract best indices
     sens_idx, rad_idx = np.unravel_index(np.argmax(out), out.shape)
+
+    # Extract best qnr score
     qnr = out[sens_idx, rad_idx]
-    return sensitivities[sens_idx], radii[rad_idx], qnr, out
+
+    # Combine parameters and metrics
+    parameters = (sens_idx, rad_idx)
+    metrics = (qnr, RSP, FRC)
+
+    return parameters, metrics

@@ -11,6 +11,7 @@ from nanopyx.methods.drift_alignment import DriftEstimator
 from custom_sweep import run_esrrf_parameter_sweep as psweep
 from post_analysis import analyze
 from pathlib import Path
+from tifffile import imwrite
 
 # Supress compiler warnings for non GPU devices
 import warnings
@@ -20,13 +21,13 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 
 # Set number of frames to temporally correlate
 start = 0
-end = 150
+end = 200
 
 # Batch frames for
-n_frames = 50
+n_frames = 100
 
 # Set number of frames to average for drift correction
-n_est = 5
+n_est = 10
 
 # Set magnificaiton (subpixel resolution)
 mag = 2
@@ -35,27 +36,23 @@ mag = 2
 corr = "AVG"
 
 # Load the .lif file based on the path to the data directory relative to the script location
-data_dir = Path(__file__).parent.resolve() / "data_raw"
-lif_path = LifFile(
-    data_dir
-    / "SUM_159_V1_28_5_2026"
-    / "SUM159_LifeAct_JF571_Grid1_oversampled_stacks.lif"
-)
+data_dir = Path(__file__).parent.resolve() / "srrf_pauli"
+lif_path = LifFile(data_dir / "20251110 Lifeact" / "FITC_LifeAct_1.lif")
 
 # Extract a specific series from the .lif file
-img_object = lif_path.get_image(6)
+img_object = lif_path.get_image(1)
 
 # Extarct frames as a z stack
 num_timepoints = img_object.dims.t
 frames_stack = []
 
 # Append a predefined number of frames to stack
-for t in range(start, end):
+for t in range(0, num_timepoints):
     frame = img_object.get_frame(t=t)
     frames_stack.append(frame)
 
 # Convert list to numpy array
-img_stack = np.stack(frames_stack)
+img_stack = np.stack(frames_stack[start:end])
 img_uncorrected = np.mean(img_stack, axis=0)
 
 # Create instances of all required classes
@@ -63,7 +60,7 @@ drif_est = DriftEstimator()
 
 # Enforce first correction
 img_stack_corrected = drif_est.estimate(
-    img_stack, apply=True, ref_option=0, time_averaging=n_est
+    img_stack, apply=True, ref_option=5, time_averaging=n_est
 )
 img_corrected = np.mean(img_stack_corrected, axis=0)
 
@@ -86,6 +83,7 @@ ax3.set_title("Residual Drift")
 ax3.axis("off")
 
 # plt.savefig(f"drift_{n_frames}frames_{mag}mag_{corr}.png", dpi=300, bbox_inches="tight")
+plt.tight_layout()
 plt.show()
 
 # Execute a parameter sweep to optimize the drift correction parameters for the given dataset
@@ -96,7 +94,6 @@ sensitivities, radii, qnr, out_array = psweep(
     radii=[1, 2],
     temporal_correlation=corr,
     plot_sweep=True,
-    return_qnr=True,
     n_frames=n_frames,
 )
 
@@ -134,30 +131,28 @@ esrrf_result = eSRRF(
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 10))
 
 ax1.imshow(reference_image, cmap="gray")
-ax1.set_title(f"Reference Image (Average of {end - start} Frames)")
+ax1.set_title(f"Reference Image (Average of {n_frames} Frames)")
 ax1.axis("off")
 
-ax2.imshow(esrrf_result[0], cmap="gray")
+ax2.imshow(esrrf_result[1], cmap="gray")
 ax2.set_title(
     f"eSRRF Frames: {n_frames} , Ring Radius: {ring_radius}, Sensitivity: {sensitivity}, Correlation: {corr}, Magnification: {magnification}"
 )
 ax2.axis("off")
 
 # plt.savefig(f"eSRRF_{n_frames}frames_{ring_radius}radii_{sensitivity}sens_{magnification}mag_{corr}.png", dpi=300, bbox_inches="tight")
+plt.tight_layout()
 plt.show()
-
-shape = np.shape(esrrf_result)
-print(shape)
 
 # Run post imaging analysis
 frc, decor, units = analyze(
     reference_image,
     esrrf_result,
     plot_error=True,
-    pixel_size=180.5,
+    pixel_size=108.5,
     units="nm",
-    frame_1=1,
-    frame_2=2,
+    frame_1=0,
+    frame_2=1,
 )
 print(
     f"FRC resolution: {frc:.3f} {units} \nDecorrelation resolution: {decor:.3f} {units}"
