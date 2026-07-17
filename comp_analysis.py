@@ -7,48 +7,47 @@ from nanopyx.methods.drift_alignment import DriftEstimator
 from nanopyx.core.analysis.parameter_sweep import ParameterSweep
 from nanopyx.methods.esrrf.eSRRF_workflow import eSRRF
 from custom_sweep import run_esrrf_parameter_sweep as psweep
+from tifffile import imwrite
 import warnings
 from pyopencl import CompilerWarning
 import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-# //* Mute the double precision GPU warning for my laptop
+# * Mute the double precision GPU warning for my laptop
 warnings.filterwarnings("ignore", category=CompilerWarning)
 
-# //? Begin Sample Loading
-# //* Fils paths of samples
+# ? Begin Sample Loading
+# * Fils paths of samples
 series1 = "./data_raw/labled_cells/cell_culture_demo/JF571/sample_28_05_2026/SUM159_LifeAct_JF571_Grid1_oversampled_stacks.lif"
 series2 = (
     "./data_raw/labled_cells/cell_culture_demo/Br4/Br4_Actin_SUM159_SiO2_10_6_2026.lif"
 )
 
-# //* Name samples (dye, frequency, temperture)
+# * Name samples (dye, frequency, temperture)
 name1 = "series1"
 name2 = "series2"
 
 # Chose save location
 save_dir = "./data_analyzed/fluctuation_comparison"
 folder = f"{name1}_vs_{name2}"
-os.makedirs(f"{save_dir}/{folder}", exist_ok=True)
 
-# //* If using two series, set equal to True
+# * If using two series, set equal to True
 two_series = False
 
-# //* Select the indices for two series (index1 = series1 and index2 = series2)
+# * Select the indices for two series (index1 = series1 and index2 = series2)
 idx1 = 0
 idx2 = 4
 
-# //? Begin Parametarizaiton
+# ? Begin Parametarizaiton
 # Drift correction
 drift_avg = 5  # Avg frames used to
 
 # Parameter Sweep
-sens_rg = [1.5, 2.5]  # List of sensativities to try
-radii_rg = [1.5, 2.5]  # List of raddi to try
+sens_rg = [1, 2, 3, 4]  # List of sensativities to try
+radii_rg = [3, 4, 5, 6, 7]  # List of raddi to try
 
 # SRRF
-pix_size = 108.5  # Pixel size in nanometers
 mag = 2  # Upsampling factor
 temporal_correlation = "AVG"  # C orrelation method
 it_w = True  # Toggle intensity weighting
@@ -59,15 +58,23 @@ man_rad_idx2 = None  # Mannual overide for radii setting fo rmovie 2
 sr_idx1 = 0  # If batching, select index of the preferred reconstruction (movie 1)
 sr_idx2 = 0  # If batching, select index of the preferred reconstruction (movie 2)
 
+# Physical Constants
+pix_size = 108.5  # Pixel size in nanometers
+wave = 500  # Wavelength
+max_res = (
+    2 * wave
+) / pix_size  # Worst possible resolution in pixels (twice the wavelength)
+min_res = wave / (2 * pix_size * mag)  # Best possible resolution in pixels
+
 # Sample batching and slicing
 start = 0  # First frame to include in analysis
-stop = 100  # Last frame to include in analysis
-n_batch = 50  # Number of frames for super resolution
+stop = 50  # Last frame to include in analysis
+n_batch = None  # Number of frames for super resolution
 
 # Save individual plots with descriptive titles and filenames for backreference
 save_png = False
 
-# //? Begin movie extraction
+# ? Begin movie extraction
 # Extract the appropriate movie, convert to array, and slice the proper data range
 movie1 = lif(series1).get_image(idx1).as_array(dims=[4])[start:stop]
 
@@ -77,7 +84,7 @@ if two_series:
 else:
     movie2 = lif(series1).get_image(idx2).as_array(dims=[4])[start:stop]
 
-# //? Begin cross-correlative XY stabilization
+# ? Begin cross-correlative XY stabilization
 # Apply correction to both data sets
 movie1_corr = DriftEstimator(verbose=False).estimate(
     movie1, apply=True, ref_options=5, time_averaging=drift_avg
@@ -90,14 +97,14 @@ movie2_corr = DriftEstimator(verbose=False).estimate(
     time_averaging=drift_avg,
 )
 
-# //? Begin parameter sweep on both data sets
+# ? Begin parameter sweep on both data sets
 params1, stats1 = psweep(
     movie1_corr,
     mag,
     sens_rg,
     radii_rg,
     temporal_correlation,
-    plot_sweep=True,
+    plot_sweep=False,
     n_frames=n_batch,
 )
 
@@ -108,25 +115,20 @@ params2, stats2 = psweep(
     sens_rg,
     radii_rg,
     temporal_correlation,
-    plot_sweep=True,
+    plot_sweep=False,
     n_frames=n_batch,
 )
-
-# //? Begin preformance of analysis
+# ? Begin preformance of analysis
 # Vertically stack frc1 and frc2 arrays for easy splitting after normalization
 frc1 = stats1[2]
 frc2 = stats2[2]
-frc_raw = np.vstack([frc1, frc2])
 
 rsp1 = stats1[1]
 rsp2 = stats2[1]
-rsp_stack = np.vstack([rsp1, rsp2])
 
 # Calculate qnr scores
-uqnr_stack = ParameterSweep().calculate_qnr_score(rsp_stack, frc_raw)
-
-# Split into qnr1 and and qnr2 arrays
-uqnr1, uqnr2 = np.vsplit(uqnr_stack, 2)
+uqnr1 = ParameterSweep().calculate_qnr_score(rsp1, frc1, min_res, max_res)
+uqnr2 = ParameterSweep().calculate_qnr_score(rsp2, frc2, min_res, max_res)
 
 # Determine senativity and ring_radius indices with option for mannual override
 sens_idx1 = params1[0] if man_sens_idx1 is None else man_sens_idx1
@@ -157,13 +159,13 @@ print(
 n_frames = 0 if n_batch is None else n_batch
 
 # Take time average of both movies for reference
-movie1_slice = movie1_corr[start : stop if n_batch is None else n_batch, :, :]
-movie2_slice = movie2_corr[start : stop if n_batch is None else n_batch, :, :]
+movie1_slice = movie1_corr[start:n_batch, :, :] if n_batch is not None else movie1_corr
+movie2_slice = movie2_corr[start:n_batch, :, :] if n_batch is not None else movie2_corr
 
 movie1_avg = np.mean(movie1_slice, axis=0)
 movie2_avg = np.mean(movie2_slice, axis=0)
 
-# //? Being eSRRF Processing
+# ? Being eSRRF Processing
 essrf1 = eSRRF(
     movie1_corr,
     mag,
@@ -194,7 +196,7 @@ rsp_select2 = rsp2[sens_idx2, rad_idx2]
 frc_select1 = pix_size * frc1[sens_idx1, rad_idx1]
 frc_select2 = pix_size * frc2[sens_idx2, rad_idx2]
 
-# //? Begin presentation
+# ? Begin presentation
 # Plot qnr plots
 figure1, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
@@ -246,20 +248,20 @@ print(f"Plotting reconstruction index {sr_idx1} for movie 1 and {sr_idx2} for mo
 figure2, ax = plt.subplots(2, 2, figsize=(16, 16))
 ax = np.ravel(ax)
 
-ax[0].imshow(essrf1[sr_idx1], cmap="gray")
+ax[0].imshow(np.log1p(essrf1[sr_idx1]), cmap="gist_heat")
 ax[0].axis("off")
 ax[0].set_title(essrf1_plot)
 
 
-ax[1].imshow(essrf2[sr_idx2], cmap="gray")
+ax[1].imshow(np.log1p(essrf2[sr_idx2]), cmap="gist_heat")
 ax[1].axis("off")
 ax[1].set_title(essrf2_plot)
 
-ax[2].imshow(movie1_avg, cmap="gray")
+ax[2].imshow(movie1_avg, cmap="gist_heat")
 ax[2].axis("off")
 ax[2].set_title(avg1_plot)
 
-ax[3].imshow(movie2_avg, cmap="gray")
+ax[3].imshow(movie2_avg, cmap="gist_heat")
 ax[3].axis("off")
 ax[3].set_title(avg2_plot)
 plt.tight_layout()
@@ -282,8 +284,11 @@ def save_plot(title, img_data, output):
     plt.close()
 
 
-# //? Save Data
+# ? Save Data
 if save_png:
+    # Make a folder to save all images
+    os.makedirs(f"{save_dir}/{folder}", exist_ok=True)
+
     # Create data dictionary
     data = {
         "names": [essrf1_plot, essrf2_plot, avg1_plot, avg2_plot],
@@ -292,8 +297,12 @@ if save_png:
     }
 
     for i in range(len(data["names"])):
+        # Create a figure for each plot
         save_plot(
             data["names"][i],
             data["input"][i],
             data["output"][i],
         )
+
+        # Save .tif files for each dataset for further manipulaiton
+        imwrite(f"{data['output'].strip('.png')}.tif", data["input"])

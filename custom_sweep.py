@@ -72,7 +72,6 @@ def run_esrrf_parameter_sweep(
         ax.set_ylabel("Sensitivities")
         fig.tight_layout()
         # plt.savefig(f"sweep.png", dpi=300, bbox_inches="tight")
-        plt.show()
 
     # Extract best indices
     sens_idx, rad_idx = np.unravel_index(np.argmax(out), out.shape)
