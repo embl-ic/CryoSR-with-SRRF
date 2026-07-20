@@ -1,9 +1,7 @@
 import numpy as np
 
 
-def calculate_SRRF_temporal_correlations(
-    im: np.array, order: int = 1, do_integrate_lag_times: bool = 0
-):
+def calculate_SRRF_temporal_correlations(im: np.array, order: int = 1, do_integrate_lag_times: bool = 0):
     """
     Calculate temporal correlations for Super-Resolution Radial Fluctuations (SRRF).
 
@@ -46,7 +44,7 @@ def calculate_SRRF_temporal_correlations(
     return out_array
 
 
-def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str):
+def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str, type: int = 2, lag: bool = True):
     """
     Calculate temporal correlations for enhanced Super-Resolution Radial Fluctuations (eSRRF).
 
@@ -71,6 +69,12 @@ def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str):
 
     elif correlation == "TAC2":
         out_array = calculate_tac2(im)
+
+    elif correlation == "TRPPM":
+        out_array = calculate_pairwise_product_sum(im)
+
+    elif correlation == "ACRF":
+        out_array = calculate_acrf_(im, type, lag)
 
     else:
         raise ValueError("Type of correlation must be AVG, VAR or TAC2")
@@ -201,8 +205,7 @@ def calculate_acrf_(rad_array, order, do_integrate_lag_times):
                     # ab * cd for t correlated t + 1 and t + 2 correlated with t+3 (bursts of blinks)
                     # ac * bd for t correlated with t + 2 and t + 1 correlated with t + 3 (periodic blinks)
                     # ad * bc for t correlated with t + 3 and t + 1 correlated with t + 2 (sustained blinks)
-                    np.absolute(abcd - ab * cd - ac * bd - ad * bc)
-                    / n_binned_time_points
+                    np.absolute(abcd - ab * cd - ac * bd - ad * bc) / n_binned_time_points
                 )
             else:
                 out_array = np.absolute(ab) / n_binned_time_points

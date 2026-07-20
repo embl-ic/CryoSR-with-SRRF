@@ -8,7 +8,7 @@ from nanopyx.methods.esrrf.eSRRF_workflow import eSRRF
 from readlif.reader import LifFile
 from matplotlib import pyplot as plt
 from nanopyx.methods.drift_alignment import DriftEstimator
-from custom_sweep import run_esrrf_parameter_sweep as psweep
+from custom_methods.custom_sweep_wrapper import run_esrrf_parameter_sweep as psweep
 from post_analysis import analyze
 from pathlib import Path
 from tifffile import imwrite
@@ -59,9 +59,7 @@ img_uncorrected = np.mean(img_stack, axis=0)
 drif_est = DriftEstimator()
 
 # Enforce first correction
-img_stack_corrected = drif_est.estimate(
-    img_stack, apply=True, ref_option=5, time_averaging=n_est
-)
+img_stack_corrected = drif_est.estimate(img_stack, apply=True, ref_option=5, time_averaging=n_est)
 img_corrected = np.mean(img_stack_corrected, axis=0)
 
 # Graph residual drift after correction
@@ -97,9 +95,7 @@ sensitivities, radii, qnr, out_array = psweep(
     n_frames=n_frames,
 )
 
-print(
-    f"Selecting sensitivity {sensitivities} and ring radius {radii} for eSRRF reconstruction..."
-)
+print(f"Selecting sensitivity {sensitivities} and ring radius {radii} for eSRRF reconstruction...")
 print(f"Maximum QnR value from parameter sweep: {qnr:.2f}...")
 print(out_array)
 
@@ -111,7 +107,9 @@ reference_image = np.mean(img_stack, axis=0)
 magnification = mag  # Adjust for subpixel resoltion
 ring_radius = radii  # Officially calculated in parameter sweep
 sensitivity = sensitivities  # Officially calcualted in parameter sweep
-frames_per_timepoint = n_frames  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
+frames_per_timepoint = (
+    n_frames  # Number of frames for each SR image (greater frames can improve resolution but increase processing time)
+)
 temporal_correlation = corr  # Temporal correlation method ('AVG', 'VAR', or 'TAC2')
 do_intensity_weighting = True
 
@@ -154,6 +152,4 @@ frc, decor, units = analyze(
     frame_1=0,
     frame_2=1,
 )
-print(
-    f"FRC resolution: {frc:.3f} {units} \nDecorrelation resolution: {decor:.3f} {units}"
-)
+print(f"FRC resolution: {frc:.3f} {units} \nDecorrelation resolution: {decor:.3f} {units}")

@@ -4,9 +4,11 @@
 
 from readlif.reader import LifFile as lif
 from nanopyx.methods.drift_alignment import DriftEstimator
-from nanopyx.core.analysis.parameter_sweep import ParameterSweep
-from nanopyx.methods.esrrf.eSRRF_workflow import eSRRF
-from custom_sweep import run_esrrf_parameter_sweep as psweep
+from custom_methods.custom_sweep import ParameterSweep
+from custom_methods.custom_eSRRF_workflow import eSRRF
+from custom_methods.custom_sweep_wrapper import run_esrrf_parameter_sweep as psweep
+from nanopyx.methods.squirrel.resolution import calculate_decorr_analysis as decorr
+from nanopyx.methods.squirrel.resolution import calculate_frc as frc
 from tifffile import imwrite
 import warnings
 from pyopencl import CompilerWarning
@@ -20,12 +22,10 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 # ? Begin Sample Loading
 # * Fils paths of samples
 series1 = "./data_raw/labled_cells/cell_culture_demo/JF571/sample_28_05_2026/SUM159_LifeAct_JF571_Grid1_oversampled_stacks.lif"
-series2 = (
-    "./data_raw/labled_cells/cell_culture_demo/Br4/Br4_Actin_SUM159_SiO2_10_6_2026.lif"
-)
+series2 = "./data_raw/labled_cells/cell_culture_demo/Br4/Br4_Actin_SUM159_SiO2_10_6_2026.lif"
 
 # * Name samples (dye, frequency, temperture)
-name1 = "series1"
+name1 = "JF571_1000Hz_Cryo"
 name2 = "series2"
 
 # Chose save location
@@ -41,16 +41,18 @@ idx2 = 4
 
 # ? Begin Parametarizaiton
 # Drift correction
-drift_avg = 5  # Avg frames used to
+drift_avg = 5  # Number of frames averaged to correct drift
 
 # Parameter Sweep
-sens_rg = [1, 2, 3, 4]  # List of sensativities to try
-radii_rg = [3, 4, 5, 6, 7]  # List of raddi to try
+do_sweep = True
+sens_rg = [1, 2]  # List of sensativities to try
+radii_rg = [1, 2]  # List of raddi to try
 
 # SRRF
 mag = 2  # Upsampling factor
-temporal_correlation = "AVG"  # C orrelation method
+temporal_correlation = "AVG"  # Correlation method
 it_w = True  # Toggle intensity weighting
+decorrelation = True  # Uses Decorrelation for resolution when true; else uses FRC for resolution
 man_sens_idx1 = None  # Mannual overside for sensitivity setting for movie 1
 man_rad_idx1 = None  # Mannual overide for radii setting fo rmovie 1
 man_sens_idx2 = None  # Mannual overside for sensitivity setting for movie 2
@@ -61,18 +63,16 @@ sr_idx2 = 0  # If batching, select index of the preferred reconstruction (movie 
 # Physical Constants
 pix_size = 108.5  # Pixel size in nanometers
 wave = 500  # Wavelength
-max_res = (
-    2 * wave
-) / pix_size  # Worst possible resolution in pixels (twice the wavelength)
+max_res = (2 * wave) / pix_size  # Worst possible resolution in pixels (twice the wavelength)
 min_res = wave / (2 * pix_size * mag)  # Best possible resolution in pixels
 
 # Sample batching and slicing
 start = 0  # First frame to include in analysis
-stop = 50  # Last frame to include in analysis
+stop = 25  # Last frame to include in analysis
 n_batch = None  # Number of frames for super resolution
 
 # Save individual plots with descriptive titles and filenames for backreference
-save_png = False
+save_results = False
 
 # ? Begin movie extraction
 # Extract the appropriate movie, convert to array, and slice the proper data range
@@ -86,9 +86,7 @@ else:
 
 # ? Begin cross-correlative XY stabilization
 # Apply correction to both data sets
-movie1_corr = DriftEstimator(verbose=False).estimate(
-    movie1, apply=True, ref_options=5, time_averaging=drift_avg
-)
+movie1_corr = DriftEstimator(verbose=False).estimate(movie1, apply=True, ref_options=5, time_averaging=drift_avg)
 
 movie2_corr = DriftEstimator(verbose=False).estimate(
     movie2,
@@ -97,38 +95,41 @@ movie2_corr = DriftEstimator(verbose=False).estimate(
     time_averaging=drift_avg,
 )
 
-# ? Begin parameter sweep on both data sets
-params1, stats1 = psweep(
-    movie1_corr,
-    mag,
-    sens_rg,
-    radii_rg,
-    temporal_correlation,
-    plot_sweep=False,
-    n_frames=n_batch,
-)
+if do_sweep:
+    # ? Begin parameter sweep on both data sets
+    params1, stats1 = psweep(
+        movie1_corr,
+        mag,
+        sens_rg,
+        radii_rg,
+        temporal_correlation,
+        use_decorr=decorrelation,
+        plot_sweep=False,
+        n_frames=n_batch,
+    )
 
+    params2, stats2 = psweep(
+        movie2_corr,
+        mag,
+        sens_rg,
+        radii_rg,
+        temporal_correlation,
+        use_decorr=decorrelation,
+        plot_sweep=False,
+        n_frames=n_batch,
+    )
 
-params2, stats2 = psweep(
-    movie2_corr,
-    mag,
-    sens_rg,
-    radii_rg,
-    temporal_correlation,
-    plot_sweep=False,
-    n_frames=n_batch,
-)
-# ? Begin preformance of analysis
-# Vertically stack frc1 and frc2 arrays for easy splitting after normalization
-frc1 = stats1[2]
-frc2 = stats2[2]
+    # ? Begin preformance of analysis
+    # Vertically stack frc1 and frc2 arrays for easy splitting after normalization
+    frc1 = stats1[2]
+    frc2 = stats2[2]
 
-rsp1 = stats1[1]
-rsp2 = stats2[1]
+    rsp1 = stats1[1]
+    rsp2 = stats2[1]
 
-# Calculate qnr scores
-uqnr1 = ParameterSweep().calculate_qnr_score(rsp1, frc1, min_res, max_res)
-uqnr2 = ParameterSweep().calculate_qnr_score(rsp2, frc2, min_res, max_res)
+    # Calculate qnr scores
+    uqnr1 = ParameterSweep().calculate_qnr_score(rsp1, frc1, min_res, max_res)
+    uqnr2 = ParameterSweep().calculate_qnr_score(rsp2, frc2, min_res, max_res)
 
 # Determine senativity and ring_radius indices with option for mannual override
 sens_idx1 = params1[0] if man_sens_idx1 is None else man_sens_idx1
@@ -146,12 +147,12 @@ ring_radius2 = radii_rg[rad_idx2]
 
 print(
     f"Using senstivity {sensitivity1} and radius {ring_radius1} for movie 1"
-    if man_sens_idx1 or man_rad_idx1 is None
+    if man_sens_idx1 is None or man_rad_idx1 is None
     else f"MANNUAL OVERRIDE: Using senstivity {sensitivity1} and radius {ring_radius1} for movie 1"
 )
 print(
     f"Using senstivity {sensitivity2} and radius {ring_radius2} for movie 2"
-    if man_sens_idx2 or man_rad_idx2 is None
+    if man_sens_idx2 is None or man_rad_idx2 is None
     else f"MANNUAL OVERRIDE: Using senstivity {sensitivity2} and radius {ring_radius2} for movie 2"
 )
 
@@ -196,39 +197,59 @@ rsp_select2 = rsp2[sens_idx2, rad_idx2]
 frc_select1 = pix_size * frc1[sens_idx1, rad_idx1]
 frc_select2 = pix_size * frc2[sens_idx2, rad_idx2]
 
+# Compute scores of averaged movies
+if decorrelation:
+    # Use Decorrelation Analysis to estiamte resolution
+    avg_res1 = decorr(movie1_avg, pixel_size=pix_size, units="nm")
+    avg_res2 = decorr(movie2_avg, pixel_size=pix_size, units="nm")
+else:
+    # Create even and odd data sets for FRC comparison
+    even1 = np.mean(movie1_slice[::2, :, :], axis=0)
+    odd1 = np.mean(movie1_slice[1::2, :, :], axis=0)
+
+    even2 = np.mean(movie2_slice[::2, :, :], axis=0)
+    odd2 = np.mean(movie2_slice[1::2, :, :], axis=0)
+
+    # Use Fourier Ring Correlation to estimate resoltion
+    avg_res1 = frc(even1, odd1, pixel_size=pix_size, units="nm")
+    avg_res2 = frc(even2, odd2, pixel_size=pix_size, units="nm")
+
+
 # ? Begin presentation
-# Plot qnr plots
-figure1, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
-# qnr1 cmap (left)
-ax1.imshow(uqnr1, cmap="cool")
-ax1.set_xticks(np.arange(len(radii_rg)), labels=radii_rg)
-ax1.set_yticks(np.arange(len(sens_rg)), labels=sens_rg)
-for i in range(len(sens_rg)):
-    for j in range(len(radii_rg)):
-        ax1.text(j, i, round(uqnr1[i, j], 2), ha="center", va="center", color="black")
-ax1.set_xlabel("Radii")
-ax1.set_ylabel("Sensitivities")
-ax1.set_title(f"{name1} Parameter Colormap")
-figure1.tight_layout()
+if do_sweep:
+    # Plot qnr plots
+    figure1, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
-# qnr2 cmap (right)
-ax2.imshow(uqnr2, cmap="cool")
-ax2.set_xticks(np.arange(len(radii_rg)), labels=radii_rg)
-ax2.set_yticks(np.arange(len(sens_rg)), labels=sens_rg)
-for i in range(len(sens_rg)):
-    for j in range(len(radii_rg)):
-        ax2.text(j, i, round(uqnr2[i, j], 2), ha="center", va="center", color="black")
-ax2.set_xlabel("Radii")
-ax2.set_ylabel("Sensitivities")
-ax2.set_title(f"{name2} Parameter Colormap")
-figure1.tight_layout()
+    # qnr1 cmap (left)
+    ax1.imshow(uqnr1, cmap="cool")
+    ax1.set_xticks(np.arange(len(radii_rg)), labels=radii_rg)
+    ax1.set_yticks(np.arange(len(sens_rg)), labels=sens_rg)
+    for i in range(len(sens_rg)):
+        for j in range(len(radii_rg)):
+            ax1.text(j, i, round(uqnr1[i, j], 2), ha="center", va="center", color="black")
+    ax1.set_xlabel("Radii")
+    ax1.set_ylabel("Sensitivities")
+    ax1.set_title(f"{name1} Parameter Colormap")
+    figure1.tight_layout()
+
+    # qnr2 cmap (right)
+    ax2.imshow(uqnr2, cmap="cool")
+    ax2.set_xticks(np.arange(len(radii_rg)), labels=radii_rg)
+    ax2.set_yticks(np.arange(len(sens_rg)), labels=sens_rg)
+    for i in range(len(sens_rg)):
+        for j in range(len(radii_rg)):
+            ax2.text(j, i, round(uqnr2[i, j], 2), ha="center", va="center", color="black")
+    ax2.set_xlabel("Radii")
+    ax2.set_ylabel("Sensitivities")
+    ax2.set_title(f"{name2} Parameter Colormap")
+    figure1.tight_layout()
 
 # Name plots
-essrf1_plot = f"{name1}: eSRRF of {movie1_slice.shape[0]} frames | UQnR: {uqnr_select1:.3f} | FRC: {frc_select1:.2f}nm | RSP: {rsp_select1:.2f}"
-essrf2_plot = f"{name2}: eSRRF of {movie2_slice.shape[0]} frames | UQnR: {uqnr_select2:.3f} | FRC: {frc_select2:.2f}nm | RSP: {rsp_select2:.2f}"
-avg1_plot = f"{name1}: Temporal Average of {movie1_slice.shape[0]} frames from frame {start} to frame {start + movie1_slice.shape[0]}"
-avg2_plot = f"{name2}: Temporal Average of {movie2_slice.shape[0]} frames from frame {start} to frame {start + movie2_slice.shape[0]}"
+essrf1_plot = f"{name1}: eSRRF of {movie1_slice.shape[0]} frames | UQnR: {uqnr_select1:.3f} | Res: {frc_select1:.2f}nm | RSP: {rsp_select1:.2f}"
+essrf2_plot = f"{name2}: eSRRF of {movie2_slice.shape[0]} frames | UQnR: {uqnr_select2:.3f} | Res: {frc_select2:.2f}nm | RSP: {rsp_select2:.2f}"
+avg1_plot = f"{name1}: Temporal Average of {movie1_slice.shape[0]} frames ({start}-{start + movie1_slice.shape[0]}) | Res: {avg_res1:.2f}nm"
+avg2_plot = f"{name2}: Temporal Average of {movie2_slice.shape[0]} frames ({start}-{start + movie2_slice.shape[0]})| Res: {avg_res2:.2f}nm"
 
 # Insert axis if necessary to handle batching
 essrf1 = np.expand_dims(essrf1, axis=0) if essrf1.ndim == 2 else essrf1
@@ -267,33 +288,34 @@ ax[3].set_title(avg2_plot)
 plt.tight_layout()
 
 # Name output files
-essrf1_output = f"{name1}_{ring_radius1}radii_{sensitivity1}sens_{mag}mag_{temporal_correlation}.png"
-essrf2_output = f"{name2}_{ring_radius2}radii_{sensitivity2}sens_{mag}mag_{temporal_correlation}.png"
-avg1_output = f"{name1}_t_avg.png"
-avg2_output = f"{name2}_t_avg.png"
+essrf1_output = f"{name1}_{ring_radius1}radii_{sensitivity1}sens_{mag}mag_{temporal_correlation}_idx{sr_idx1}"
+essrf2_output = f"{name2}_{ring_radius2}radii_{sensitivity2}sens_{mag}mag_{temporal_correlation}_idx{sr_idx2}"
+avg1_output = f"{name1}_t_avg"
+avg2_output = f"{name2}_t_avg"
 
 
 # Define saving fucntion
 def save_plot(title, img_data, output):
     plt.figure(figsize=(10, 10))
-    plt.imshow(img_data, cmap="gray")
+    plt.imshow(np.log1p(img_data), cmap="gist_heat")
     plt.title(title, fontsize=12)
     plt.tight_layout()
     plt.axis("off")
-    plt.savefig(f"{save_dir}/{folder}/{output}", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{save_dir}/{folder}/{output}.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
 # ? Save Data
-if save_png:
+if save_results:
     # Make a folder to save all images
     os.makedirs(f"{save_dir}/{folder}", exist_ok=True)
 
     # Create data dictionary
     data = {
         "names": [essrf1_plot, essrf2_plot, avg1_plot, avg2_plot],
-        "input": [essrf1[sr_idx1], essrf2[sr_idx2], movie1_avg, movie2_avg],
+        "input": [essrf1[sr_idx1], essrf2[sr_idx1], movie1_avg, movie2_avg],
         "output": [essrf1_output, essrf2_output, avg1_output, avg2_output],
+        "series": [essrf1, essrf2, movie1_avg, movie2_avg],
     }
 
     for i in range(len(data["names"])):
@@ -305,4 +327,8 @@ if save_png:
         )
 
         # Save .tif files for each dataset for further manipulaiton
-        imwrite(f"{data['output'].strip('.png')}.tif", data["input"])
+        imwrite(f"{save_dir}/{folder}/{data['output'][i]}.tif", data["series"][i])
+
+        # Save .tif files for the original data
+        imwrite(f"{save_dir}/{folder}/{name1}_original.tif", movie1)
+        imwrite(f"{save_dir}/{folder}/{name2}_original.tif", movie2)

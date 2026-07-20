@@ -4,6 +4,7 @@
 
 # Python cache
 __pycache__/*
+custom_methods/__pycache__/*
 
 # VSCode settings
 .vscode/*
