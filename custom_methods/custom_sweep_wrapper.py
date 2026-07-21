@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from nanopyx.core.analysis.parameter_sweep import ParameterSweep
+from custom_methods.custom_sweep import ParameterSweep
 
 
 def run_esrrf_parameter_sweep(

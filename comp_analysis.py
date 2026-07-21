@@ -3,6 +3,7 @@
 # EMBL - Zimmerman Team
 
 from readlif.reader import LifFile as lif
+from liffile import LifFile as lifmd
 from nanopyx.methods.drift_alignment import DriftEstimator
 from custom_methods.custom_sweep import ParameterSweep
 from custom_methods.custom_eSRRF_workflow import eSRRF
@@ -21,38 +22,42 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 
 # ? Begin Sample Loading
 # * Fils paths of samples
-series1 = "./data_raw/labled_cells/cell_culture_demo/JF571/sample_28_05_2026/SUM159_LifeAct_JF571_Grid1_oversampled_stacks.lif"
-series2 = "./data_raw/labled_cells/cell_culture_demo/Br4/Br4_Actin_SUM159_SiO2_10_6_2026.lif"
+series1 = "./data_raw/labled_cells/fluctuation_analysis/Br2-Fluorescein-RT-confocal.lif"
+series2 = "./data_raw/labled_cells/fluctuation_analysis/Br3_RT_Confocal.lif"
 
 # * Name samples (dye, frequency, temperture)
-name1 = "JF571_1000Hz_Cryo"
-name2 = "series2"
-
-# Chose save location
-save_dir = "./data_analyzed/fluctuation_comparison"
-folder = f"{name1}_vs_{name2}"
+sample1 = "Br2_8000Hz_RT"
+sample2 = "Br3_8000Hz_RT"
 
 # * If using two series, set equal to True
-two_series = False
+two_series = True
 
 # * Select the indices for two series (index1 = series1 and index2 = series2)
-idx1 = 0
-idx2 = 4
+idx1 = 2
+idx2 = 2
+
+if two_series:
+    name1 = f"{sample1}_idx{idx1}"
+    name2 = f"{sample2}_idx{idx2}"
+else:
+    name1 = f"{sample1}_idx{idx1}"
+    name2 = f"{sample1}_idx{idx2}"
+
 
 # ? Begin Parametarizaiton
 # Drift correction
-drift_avg = 5  # Number of frames averaged to correct drift
+drift_avg = 50  # Number of frames averaged to correct drift
 
 # Parameter Sweep
 do_sweep = True
-sens_rg = [1, 2]  # List of sensativities to try
-radii_rg = [1, 2]  # List of raddi to try
+sens_rg = [1, 2, 3, 4, 5]  # List of sensativities to try
+radii_rg = [1, 2, 3, 4, 5]  # List of raddi to try
 
 # SRRF
 mag = 2  # Upsampling factor
 temporal_correlation = "AVG"  # Correlation method
 it_w = True  # Toggle intensity weighting
-decorrelation = True  # Uses Decorrelation for resolution when true; else uses FRC for resolution
+decorrelation = False  # Uses Decorrelation for resolution when true; else uses FRC for resolution
 man_sens_idx1 = None  # Mannual overside for sensitivity setting for movie 1
 man_rad_idx1 = None  # Mannual overide for radii setting fo rmovie 1
 man_sens_idx2 = None  # Mannual overside for sensitivity setting for movie 2
@@ -68,11 +73,11 @@ min_res = wave / (2 * pix_size * mag)  # Best possible resolution in pixels
 
 # Sample batching and slicing
 start = 0  # First frame to include in analysis
-stop = 25  # Last frame to include in analysis
+stop = 250  # Last frame to include in analysis
 n_batch = None  # Number of frames for super resolution
 
 # Save individual plots with descriptive titles and filenames for backreference
-save_results = False
+save_results = True
 
 # ? Begin movie extraction
 # Extract the appropriate movie, convert to array, and slice the proper data range
@@ -86,12 +91,12 @@ else:
 
 # ? Begin cross-correlative XY stabilization
 # Apply correction to both data sets
-movie1_corr = DriftEstimator(verbose=False).estimate(movie1, apply=True, ref_options=5, time_averaging=drift_avg)
+movie1_corr = DriftEstimator(verbose=False).estimate(movie1, apply=True, ref_options=0, time_averaging=drift_avg)
 
 movie2_corr = DriftEstimator(verbose=False).estimate(
     movie2,
     apply=True,
-    ref_options=5,
+    ref_options=0,
     time_averaging=drift_avg,
 )
 
@@ -202,6 +207,9 @@ if decorrelation:
     # Use Decorrelation Analysis to estiamte resolution
     avg_res1 = decorr(movie1_avg, pixel_size=pix_size, units="nm")
     avg_res2 = decorr(movie2_avg, pixel_size=pix_size, units="nm")
+
+    # Denote resolution measurement for book keeping purposes
+    res_type = "Decorr"
 else:
     # Create even and odd data sets for FRC comparison
     even1 = np.mean(movie1_slice[::2, :, :], axis=0)
@@ -213,6 +221,9 @@ else:
     # Use Fourier Ring Correlation to estimate resoltion
     avg_res1 = frc(even1, odd1, pixel_size=pix_size, units="nm")
     avg_res2 = frc(even2, odd2, pixel_size=pix_size, units="nm")
+
+    # Denote resolution measurement for book keeping purposes
+    res_type = "FRC"
 
 
 # ? Begin presentation
@@ -242,7 +253,7 @@ if do_sweep:
             ax2.text(j, i, round(uqnr2[i, j], 2), ha="center", va="center", color="black")
     ax2.set_xlabel("Radii")
     ax2.set_ylabel("Sensitivities")
-    ax2.set_title(f"{name2} Parameter Colormap")
+    ax2.set_title(f"{name2} Parameter Colormap ({res_type})")
     figure1.tight_layout()
 
 # Name plots
@@ -285,13 +296,17 @@ ax[2].set_title(avg1_plot)
 ax[3].imshow(movie2_avg, cmap="gist_heat")
 ax[3].axis("off")
 ax[3].set_title(avg2_plot)
-plt.tight_layout()
+figure2.tight_layout()
 
 # Name output files
-essrf1_output = f"{name1}_{ring_radius1}radii_{sensitivity1}sens_{mag}mag_{temporal_correlation}_idx{sr_idx1}"
-essrf2_output = f"{name2}_{ring_radius2}radii_{sensitivity2}sens_{mag}mag_{temporal_correlation}_idx{sr_idx2}"
+essrf1_output = f"{name1}_{ring_radius1}radii_{sensitivity1}sens_{mag}mag_{temporal_correlation}_sridx{sr_idx1}"
+essrf2_output = f"{name2}_{ring_radius2}radii_{sensitivity2}sens_{mag}mag_{temporal_correlation}_sridx{sr_idx2}"
 avg1_output = f"{name1}_t_avg"
 avg2_output = f"{name2}_t_avg"
+
+save_dir = "./data_analyzed/fluctuation_comparison"
+folder = f"{name1}_vs_{name2}"
+subfolder = f"{temporal_correlation}correlation_{res_type}resolution"
 
 
 # Define saving fucntion
@@ -301,23 +316,25 @@ def save_plot(title, img_data, output):
     plt.title(title, fontsize=12)
     plt.tight_layout()
     plt.axis("off")
-    plt.savefig(f"{save_dir}/{folder}/{output}.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{save_dir}/{folder}/{subfolder}/{output}.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
 # ? Save Data
 if save_results:
     # Make a folder to save all images
-    os.makedirs(f"{save_dir}/{folder}", exist_ok=True)
+    os.makedirs(f"{save_dir}/{folder}/{subfolder}", exist_ok=True)
+    os.makedirs(f"{save_dir}/{folder}/original_data", exist_ok=True)
 
     # Create data dictionary
     data = {
         "names": [essrf1_plot, essrf2_plot, avg1_plot, avg2_plot],
-        "input": [essrf1[sr_idx1], essrf2[sr_idx1], movie1_avg, movie2_avg],
+        "input": [np.log1p(essrf1[sr_idx1]), np.log1p(essrf2[sr_idx1]), movie1_avg, movie2_avg],
         "output": [essrf1_output, essrf2_output, avg1_output, avg2_output],
         "series": [essrf1, essrf2, movie1_avg, movie2_avg],
     }
 
+    # Iterate over all data
     for i in range(len(data["names"])):
         # Create a figure for each plot
         save_plot(
@@ -327,8 +344,22 @@ if save_results:
         )
 
         # Save .tif files for each dataset for further manipulaiton
-        imwrite(f"{save_dir}/{folder}/{data['output'][i]}.tif", data["series"][i])
+        imwrite(f"{save_dir}/{folder}/{subfolder}/{data['output'][i]}.tif", data["series"][i])
 
-        # Save .tif files for the original data
-        imwrite(f"{save_dir}/{folder}/{name1}_original.tif", movie1)
-        imwrite(f"{save_dir}/{folder}/{name2}_original.tif", movie2)
+        # Save .tif files for the original data as a unique sub folder (only if subfolder is empty)
+        empty = True
+        for _ in os.scandir(f"{save_dir}/{folder}/original_data"):
+            empty = False
+            break
+
+        if empty:
+            imwrite(f"{save_dir}/{folder}/original_data/{name1}_original.tif", movie1)
+            imwrite(f"{save_dir}/{folder}/original_data/{name2}_original.tif", movie2)
+
+    # Save Parameter Sweep
+    figure1.savefig(f"{save_dir}/{folder}/{subfolder}/parameter_sweep_{res_type}.png", dpi=300, bbox_inches="tight")
+
+    # Save Comparitive Plot
+    figure2.savefig(f"{save_dir}/{folder}/{subfolder}/comparative_chart_{res_type}.png", dpi=300, bbox_inches="tight")
+
+    print("Data saved successfully!\a")
