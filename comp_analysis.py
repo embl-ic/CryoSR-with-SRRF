@@ -2,20 +2,21 @@
 # 07/13/2026
 # EMBL - Zimmerman Team
 
-from readlif.reader import LifFile as lif
-from liffile import LifFile as lifmd
-from nanopyx.methods.drift_alignment import DriftEstimator
-from custom_methods.custom_sweep import ParameterSweep
-from custom_methods.custom_eSRRF_workflow import eSRRF
-from custom_methods.custom_sweep_wrapper import run_esrrf_parameter_sweep as psweep
-from nanopyx.methods.squirrel.resolution import calculate_decorr_analysis as decorr
-from nanopyx.methods.squirrel.resolution import calculate_frc as frc
-from tifffile import imwrite
-import warnings
-from pyopencl import CompilerWarning
 import os
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
+from liffile import LifFile as lif
+from nanopyx.methods.drift_alignment import DriftEstimator
+from nanopyx.methods.squirrel.resolution import calculate_decorr_analysis as decorr
+from nanopyx.methods.squirrel.resolution import calculate_frc as frc
+from pyopencl import CompilerWarning
+from tifffile import imwrite
+
+from custom_methods.custom_eSRRF_workflow import eSRRF
+from custom_methods.custom_sweep import ParameterSweep
+from custom_methods.custom_sweep_wrapper import run_esrrf_parameter_sweep as psweep
 
 # * Mute the double precision GPU warning for my laptop
 warnings.filterwarnings("ignore", category=CompilerWarning)
@@ -26,8 +27,8 @@ series1 = "./data_raw/labled_cells/fluctuation_analysis/Br2-Fluorescein-RT-confo
 series2 = "./data_raw/labled_cells/fluctuation_analysis/Br3_RT_Confocal.lif"
 
 # * Name samples (dye, frequency, temperture)
-sample1 = "Br2_8000Hz_RT"
-sample2 = "Br3_8000Hz_RT"
+sample1 = "Br2_RT_8000Hz"
+sample2 = "Br3_RT_8000Hz"
 
 # * If using two series, set equal to True
 two_series = True
@@ -36,6 +37,7 @@ two_series = True
 idx1 = 2
 idx2 = 2
 
+# TODO add the frequency in this portion of the name
 if two_series:
     name1 = f"{sample1}_idx{idx1}"
     name2 = f"{sample2}_idx{idx2}"
@@ -46,12 +48,12 @@ else:
 
 # ? Begin Parametarizaiton
 # Drift correction
-drift_avg = 50  # Number of frames averaged to correct drift
+drift_avg = 10  # Number of frames averaged to correct drift
 
 # Parameter Sweep
 do_sweep = True
-sens_rg = [1, 2, 3, 4, 5]  # List of sensativities to try
-radii_rg = [1, 2, 3, 4, 5]  # List of raddi to try
+sens_rg = [1, 2]  # List of sensativities to try
+radii_rg = [1]  # List of raddi to try
 
 # SRRF
 mag = 2  # Upsampling factor
@@ -73,7 +75,7 @@ min_res = wave / (2 * pix_size * mag)  # Best possible resolution in pixels
 
 # Sample batching and slicing
 start = 0  # First frame to include in analysis
-stop = 250  # Last frame to include in analysis
+stop = 25  # Last frame to include in analysis
 n_batch = None  # Number of frames for super resolution
 
 # Save individual plots with descriptive titles and filenames for backreference
@@ -81,13 +83,13 @@ save_results = True
 
 # ? Begin movie extraction
 # Extract the appropriate movie, convert to array, and slice the proper data range
-movie1 = lif(series1).get_image(idx1).as_array(dims=[4])[start:stop]
+movie1 = lif(series1).images[idx1].asarray()[start:stop]
 
 # Handle second movie based on existance of a second input file
 if two_series:
-    movie2 = lif(series2).get_image(idx2).as_array(dims=[4])[start:stop]
+    movie2 = lif(series2).images[idx2].asarray()[start:stop]
 else:
-    movie2 = lif(series1).get_image(idx2).as_array(dims=[4])[start:stop]
+    movie2 = lif(series1).images[idx2].asarray()[start:stop]
 
 # ? Begin cross-correlative XY stabilization
 # Apply correction to both data sets
@@ -100,8 +102,11 @@ movie2_corr = DriftEstimator(verbose=False).estimate(
     time_averaging=drift_avg,
 )
 
+# ? Extract Decay Curve Data
+
+
+# ? Begin parameter sweep on both data sets
 if do_sweep:
-    # ? Begin parameter sweep on both data sets
     params1, stats1 = psweep(
         movie1_corr,
         mag,

@@ -11,7 +11,6 @@ from nanopyx.methods.drift_alignment import DriftEstimator
 from custom_methods.custom_sweep_wrapper import run_esrrf_parameter_sweep as psweep
 from post_analysis import analyze
 from pathlib import Path
-from tifffile import imwrite
 
 # Supress compiler warnings for non GPU devices
 import warnings

@@ -19,6 +19,7 @@ data_analyzed
 srrf_pauli
 Reports/
 *.tif
+*.txt
 
 #cluster files
 *.png
