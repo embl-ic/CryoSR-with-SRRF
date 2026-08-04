@@ -4,9 +4,11 @@
 
 import os
 import warnings
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from liffile import LifFile as lif
 from nanopyx.methods.drift_alignment import DriftEstimator
 from nanopyx.methods.squirrel.resolution import calculate_decorr_analysis as decorr
@@ -17,45 +19,49 @@ from tifffile import imwrite
 from custom_methods.custom_eSRRF_workflow import eSRRF
 from custom_methods.custom_sweep import ParameterSweep
 from custom_methods.custom_sweep_wrapper import run_esrrf_parameter_sweep as psweep
+from decay_curve_plots import plot_decay
 
 # * Mute the double precision GPU warning for my laptop
 warnings.filterwarnings("ignore", category=CompilerWarning)
 
 # ? Begin Sample Loading
 # * Fils paths of samples
-series1 = "./data_raw/labled_cells/fluctuation_analysis/Br2-Fluorescein-RT-confocal.lif"
-series2 = "./data_raw/labled_cells/fluctuation_analysis/Br3_RT_Confocal.lif"
+series1 = "./data_raw/labled_cells/fluctuation_analysis/Cryo/br2_cryo_confocal/br2_cryo_confocal.lif"
+series2 = "./data_raw/labled_cells/fluctuation_analysis/Cryo/br2_cryo_confocal/br2_cryo_confocal.lif"
 
 # * Name samples (dye, frequency, temperture)
-sample1 = "Br2_RT_8000Hz"
-sample2 = "Br3_RT_8000Hz"
+sample1 = "Test1"
+freq1 = 6000
+
+sample2 = "Test2"
+freq2 = 1800
 
 # * If using two series, set equal to True
-two_series = True
+two_series = False
 
 # * Select the indices for two series (index1 = series1 and index2 = series2)
-idx1 = 2
+idx1 = 1
 idx2 = 2
 
 # TODO add the frequency in this portion of the name
 if two_series:
-    name1 = f"{sample1}_idx{idx1}"
-    name2 = f"{sample2}_idx{idx2}"
+    name1 = f"{sample1}_{freq1}hz_idx{idx1}"
+    name2 = f"{sample2}_{freq2}hz_idx{idx2}"
 else:
-    name1 = f"{sample1}_idx{idx1}"
-    name2 = f"{sample1}_idx{idx2}"
+    name1 = f"{sample1}_{freq1}hz_idx{idx1}"
+    name2 = f"{sample1}_{freq2}hz_idx{idx2}"
 
 
 # ? Begin Parametarizaiton
-# Drift correction
-drift_avg = 10  # Number of frames averaged to correct drift
+# * Drift correction
+drift_avg = 5  # Number of frames averaged to correct drift
 
-# Parameter Sweep
+# * Parameter Sweep
 do_sweep = True
 sens_rg = [1, 2]  # List of sensativities to try
 radii_rg = [1]  # List of raddi to try
 
-# SRRF
+# * SRRF
 mag = 2  # Upsampling factor
 temporal_correlation = "AVG"  # Correlation method
 it_w = True  # Toggle intensity weighting
@@ -67,29 +73,36 @@ man_rad_idx2 = None  # Mannual overide for radii setting fo rmovie 2
 sr_idx1 = 0  # If batching, select index of the preferred reconstruction (movie 1)
 sr_idx2 = 0  # If batching, select index of the preferred reconstruction (movie 2)
 
-# Physical Constants
+# * Physical Constants
 pix_size = 108.5  # Pixel size in nanometers
 wave = 500  # Wavelength
 max_res = (2 * wave) / pix_size  # Worst possible resolution in pixels (twice the wavelength)
 min_res = wave / (2 * pix_size * mag)  # Best possible resolution in pixels
 
-# Sample batching and slicing
+# * Sample batching and slicing
 start = 0  # First frame to include in analysis
 stop = 25  # Last frame to include in analysis
 n_batch = None  # Number of frames for super resolution
 
-# Save individual plots with descriptive titles and filenames for backreference
+# * Save individual plots with descriptive titles and filenames for backreference
 save_results = True
+calculate_decay = True
+limit1 = 1.75  # Extent of the inset in the decay graph of sample 1
+limit2 = 1.75  # Extent of the inset in the decay graph of sample 2
 
 # ? Begin movie extraction
-# Extract the appropriate movie, convert to array, and slice the proper data range
-movie1 = lif(series1).images[idx1].asarray()[start:stop]
+# Extract the appropriate movie
+lif_obj1 = lif(series1).images[idx1]
+lif_obj2 = lif(series2).images[idx2]
+
+# Convert to array, and slice the proper data range
+movie1 = lif_obj1.asarray()[start:stop]
 
 # Handle second movie based on existance of a second input file
 if two_series:
-    movie2 = lif(series2).images[idx2].asarray()[start:stop]
+    movie2 = lif_obj2.asarray()[start:stop]
 else:
-    movie2 = lif(series1).images[idx2].asarray()[start:stop]
+    movie2 = lif_obj1.asarray()[start:stop]
 
 # ? Begin cross-correlative XY stabilization
 # Apply correction to both data sets
@@ -103,7 +116,9 @@ movie2_corr = DriftEstimator(verbose=False).estimate(
 )
 
 # ? Extract Decay Curve Data
-
+if calculate_decay:
+    decay_fig1, (raw_data1, fit_data1) = plot_decay(lif_obj1, name1, limit1)
+    decay_fig2, (raw_data2, fit_data2) = plot_decay(lif_obj2, name2, limit2)
 
 # ? Begin parameter sweep on both data sets
 if do_sweep:
@@ -310,6 +325,7 @@ avg1_output = f"{name1}_t_avg"
 avg2_output = f"{name2}_t_avg"
 
 save_dir = "./data_analyzed/fluctuation_comparison"
+save_decay_dir = "./data_analyzed/decay_comparison"
 folder = f"{name1}_vs_{name2}"
 subfolder = f"{temporal_correlation}correlation_{res_type}resolution"
 
@@ -325,11 +341,36 @@ def save_plot(title, img_data, output):
     plt.close()
 
 
+# Define decay file organizer
+def data_as_excel(
+    raw_data_frame: pd.DataFrame, fitted_data_frame: pd.DataFrame, save_path: str, sample: str, name: str
+) -> None:
+
+    # Define the common path
+    cpath = f"{save_path}/{sample}"
+
+    # Create an excel file if one does not exists
+    if not any(Path(cpath).glob("*.xlsx")):
+        raw_data_frame.to_excel(f"{cpath}/{sample}_rawdata.xlsx", sheet_name=name)
+        fitted_data_frame.to_excel(f"{cpath}/{sample}_fitdata.xlsx", sheet_name=name)
+
+    else:
+        # Append Raw Data
+        with pd.ExcelWriter(f"{cpath}/{sample}_rawdata.xlsx", mode="a") as writer1:
+            raw_data_frame.to_excel(writer1, sheet_name=name)
+
+        # Append Fitted Data
+        with pd.ExcelWriter(f"{cpath}/{sample}_fitdata.xlsx", mode="a") as writer2:
+            fitted_data_frame.to_excel(writer2, sheet_name=name)
+
+
 # ? Save Data
 if save_results:
     # Make a folder to save all images
     os.makedirs(f"{save_dir}/{folder}/{subfolder}", exist_ok=True)
     os.makedirs(f"{save_dir}/{folder}/original_data", exist_ok=True)
+    os.makedirs(f"{save_decay_dir}/{sample1}", exist_ok=True)
+    os.makedirs(f"{save_decay_dir}/{sample2}", exist_ok=True)
 
     # Create data dictionary
     data = {
@@ -367,4 +408,25 @@ if save_results:
     # Save Comparitive Plot
     figure2.savefig(f"{save_dir}/{folder}/{subfolder}/comparative_chart_{res_type}.png", dpi=300, bbox_inches="tight")
 
-    print("Data saved successfully!\a")
+    # Save Decay Plots
+    decay_fig1.savefig(f"{save_decay_dir}/{sample1}/{sample1}_{freq1}.png", dpi=300, bbox_inches="tight")
+    decay_fig2.savefig(f"{save_decay_dir}/{sample2}/{sample2}_{freq2}.png", dpi=300, bbox_inches="tight")
+
+    """    # Create a .xlsx file if none already exists
+    if not any(Path(f"{save_decay_dir}/{sample1}").glob("*.xlsx")):
+        raw_data1.to_excel(f"{save_decay_dir}/{sample1}/{sample1}_rawdata.xlsx", sheet_name=f"{name1}")
+        fit_data1.to_excel(f"{save_decay_dir}/{sample1}/{sample1}_fitdata.xlsx", sheet_name=f"{name1}")
+
+    else:
+        # Append raw data
+        with pd.ExcelWriter(f"{save_decay_dir}/{sample1}/{sample1}_rawdata.xlsx", mode="a") as writter1:
+            raw_data1.to_excel(writter1, sheet_name=f"{name1}")
+        # Append fitted data
+        with pd.ExcelWriter(f"{save_decay_dir}/{sample1}/{sample1}_fitdata.xlsx", mode="a") as writter2:
+            fit_data1.to_excel(writter2, sheet_name=f"{name1}")
+            """
+
+    data_as_excel(raw_data1, fit_data1, save_decay_dir, sample1, name1)
+    data_as_excel(raw_data2, fit_data2, save_decay_dir, sample2, name2)
+
+    print("Data saved successfully!")

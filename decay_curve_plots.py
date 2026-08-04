@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
@@ -9,11 +8,11 @@ from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
 
-# Load image
+# Load test image
 image = lif("./data_raw/labled_cells/fluctuation_analysis/Cryo/br2_cryo_confocal/br2_cryo_confocal.lif").images[2]
 
 
-def plot_decay(im: NDArray, output_path: str, name: str, inset: bool = True) -> None:
+def plot_decay(im: NDArray, name: str, boundry: int) -> tuple[plt.figure, pd.DataFrame]:
 
     # Extract metadata from the .lif file
     attributes = im.attrs["HardwareSetting"]["ATLConfocalSettingDefinition"]
@@ -23,7 +22,7 @@ def plot_decay(im: NDArray, output_path: str, name: str, inset: bool = True) -> 
     intensity = np.mean(im.asarray(), axis=(1, 2))
 
     # Determine length of cropped region
-    cutoff = 1
+    cutoff = boundry
     limit = np.searchsorted(time, cutoff, side="right")
 
     # Crop region of interest
@@ -35,7 +34,7 @@ def plot_decay(im: NDArray, output_path: str, name: str, inset: bool = True) -> 
 
         # Transform data with a natural log
         baseline = np.median(intensity)  # Subtract the constant
-        mask = crop_intensity - baseline > 0  # Only select values > 0 wiht a boolean mask
+        mask = crop_intensity - baseline > 0  # Only select values > 0 with a boolean mask
         y_log = crop_intensity[mask]  # Apply mask to the y axis
         x_log = crop_time[mask]  # Apply mask to x axis
         y_est = np.log(y_log - baseline)  # transform logirthmically
@@ -46,6 +45,7 @@ def plot_decay(im: NDArray, output_path: str, name: str, inset: bool = True) -> 
         # Use logrithmic regression to generate an intial guesses
         p0 = [np.exp(b), np.exp(b) / 2, m, 2 * m, np.median(intensity)]
 
+        # ? Attempt to fit an exponential function to cryo data
         # Fit the double exponential
         (a_fit, a2_fit, k_fit, k2_fit, c_fit), _, info, _, _ = curve_fit(
             lambda x, a, a2, k, k2, c: a * np.exp(k * x) + a2 * np.exp(k2 * x) + c,
@@ -62,45 +62,33 @@ def plot_decay(im: NDArray, output_path: str, name: str, inset: bool = True) -> 
 
         # Create the fitted dataset
         x_fit = np.linspace(0, np.max(crop_time), 1000)
-        y_dbl = a_fit * np.exp(k_fit * x_fit) + a2_fit * np.exp(k2_fit * x_fit) + c_fit
         y_sgl = A_fit * np.exp(K_fit * x_fit) + C_fit
+        y_dbl = a_fit * np.exp(k_fit * x_fit) + a2_fit * np.exp(k2_fit * x_fit) + c_fit
 
-        # Plot the data
-        figure1, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 12))
+        # Find r2_scores
+        y_sgl_r2 = A_fit * np.exp(K_fit * crop_time) + C_fit
+        y_dbl_r2 = a_fit * np.exp(k_fit * crop_time) + a2_fit * np.exp(k2_fit * crop_time) + c_fit
+        r2_scores = [r2_score(crop_intensity, y_sgl_r2), r2_score(crop_intensity, y_dbl_r2)]
 
-        ax1.scatter(crop_time, crop_intensity, label="Raw Data", color="gray")
-        ax1.plot(
-            x_fit,
-            y_dbl,
-            label=f"{a_fit:.2f}exp({k_fit:.2f}x) + {a2_fit:.2f}exp({k2_fit:.2f}x) + {c_fit:.2f}",
-            color="black",
-            alpha=0.75,
-        )
+        # Pack variables
+        # fmt: off
+        y_prd = [
+            FittedCurve(y_sgl, INFO["fvec"], f"{A_fit:.2f}e^({K_fit:.2f}x) + {C_fit:.2f}", "blue"),
+            FittedCurve(y_dbl, info["fvec"], f"{a_fit:.2f}e^({k_fit:.2f}x) + {a2_fit:.2f}e^({k2_fit:.2f}x) + {c_fit:.2f}", "red")
+        ]
+        info = Data(time, intensity,x_fit, y_prd)
+        setup = Config("Time (Seconds)", "Intensity (Counts)", [0.4, 0.1, 0.55, 0.55], cutoff, name, r2_scores)
+        # fmt: on
 
-        # Find largest value for limit purposes
-        lim = max(np.abs(info["fvec"]).max(), np.abs(INFO["fvec"]).max())
+        # Call plotting function
+        fig = inset_fitted_plot(info, setup)
 
-        ax1.plot(x_fit, y_sgl, label=f"{A_fit:.2f}exp({K_fit:.2f}x) + {C_fit:.2f}", color="blue", alpha=0.75)
-        ax1.set_title(f"{name}: Z-Axis Profile")
-        ax1.set_xlabel("Time (Seconds)")
-        ax1.set_ylabel("Intensity (Counts)")
-        ax1.legend()
-        ax1.grid("On")
+        print("Fluorescence decay sucessfully fitted to an exponential model!")
 
-        ax2.plot(crop_time, np.zeros_like(crop_time), color="black")
-        ax2.scatter(crop_time, info["fvec"], label="Double Exponential Residuals", color="red")
-        ax2.scatter(crop_time, INFO["fvec"], label="Single Exponential Residuals", color="blue")
-        ax2.set_title(f"{name}: Residual Plot")
-        ax2.set_xlabel("Time (Seonds)")
-        ax2.set_ylabel("Error (Counts)")
-        ax2.set_ylim([-1.1 * lim, 1.1 * lim])
-        ax2.legend()
-        ax2.grid("On")
-        figure1.tight_layout()
-
-        print("FLuorescence decay sucessfully fitted to an exponential model!")
-
+    # ? Fall back to a linear lit for room temperature data
     except RuntimeError:
+        print("Exponential fit failed, falling back to a linear model...")
+
         # Fit to a linear model
         (M, B), _, infodict, _, _ = curve_fit(
             lambda X0, M, B: M * X0 + B, time, intensity, [-1, p0[0]], full_output=True
@@ -112,15 +100,35 @@ def plot_decay(im: NDArray, output_path: str, name: str, inset: bool = True) -> 
 
         # Find the r2 score
         y_r2 = M * time + B
-        r2 = r2_score(intensity, y_r2)
+        r2_scores = [r2_score(intensity, y_r2)]
 
         # Pack variables
         y_prd = [FittedCurve(y_fit, infodict["fvec"], f"$y = {M:.2f}x+{B:.2f}$", "orange")]
         info = Data(time, intensity, x_fit, y_prd)
-        setup = Config("Time (Seconds)", "Intensity (Counts)", [0.4, 0.1, 0.55, 0.55], 1, name, r2)
+        setup = Config("Time (Seconds)", "Intensity (Counts)", [0.4, 0.1, 0.55, 0.55], cutoff, name, r2_scores)
 
         # Call plotting function
-        inset_fitted_plot(info, setup)
+        fig = inset_fitted_plot(info, setup)
+
+        print("Sucessfully fit to a linear model!")
+
+    # Create dataframe for raw values
+    data_frame_raw = pd.DataFrame({f"{setup.xlabel}": info.x_vals, f"{setup.ylabel}": info.y_vals})
+
+    # Create a dataframe for fitted values
+    data_frame_fitted = pd.DataFrame({f"{setup.xlabel}": info.x_fitted})
+
+    # Determine exponetial or linearity
+    moniker = ("Single Exp", "Double Exp") if len(y_prd) > 1 else "Linear"
+
+    # Add a collum for each fit of the dependent variable
+    for i, curve in enumerate(y_prd):
+        data_frame_fitted[f"{setup.ylabel} {moniker[i]}"] = curve.vals
+
+    # Pack as a tuple
+    data = (data_frame_raw, data_frame_fitted)
+
+    return fig, data
 
 
 @dataclass
@@ -135,12 +143,15 @@ class Data:
 class Config:
     xlabel: str
     ylabel: str
-    extent: list[float]
+    extent: list[float]  # x0, y0, width, height
     cutoff: int
     name: str
-    r2_score: float | None = None
+    r2_score: list | None = None
     size: tuple = (8, 12)
     legend_loc: str = "upper right"
+    x_r2: int = 0
+    y_r2: int = 0
+    font_r2: int = 14
 
 
 @dataclass
@@ -151,7 +162,7 @@ class FittedCurve:
     color: str
 
 
-def inset_fitted_plot(data: Data, config: Config, save_path: str | None = None, **kwargs) -> None:
+def inset_fitted_plot(data: Data, config: Config, save_path: str | None = None, **kwargs) -> plt.Figure:
     """Plot fitted decay data with an inset zoom and residual panel."""
 
     # Initialize figure and axes
@@ -170,13 +181,23 @@ def inset_fitted_plot(data: Data, config: Config, save_path: str | None = None, 
 
     # Add the fitted data to the main, inset, and residual plots
     maxes = []
-    for curve in data.y_fitted:
+    for i, curve in enumerate(data.y_fitted):
         # Plot all fitted curves in the main graph
         ax1.plot(data.x_fitted, curve.vals, label=curve.equation, color=curve.color)
         # Plot all fitted curves in the inset
         ax1_inset.plot(data.x_fitted, curve.vals, label=curve.equation, color=curve.color)
         # Plot the residuals of all fitted curves
-        ax2.scatter(data.x_vals, curve.residuals, label=curve.equation, color=curve.color)
+        ax2.scatter(data.x_vals[0 : len(curve.residuals)], curve.residuals, label=curve.equation, color=curve.color)
+        # Annotate r2_scores (if selected)
+        if config.r2_score is not None:
+            ax1_inset.text(
+                0.8 + config.x_r2,
+                0.6 - (i * 0.065) + config.y_r2,
+                f"$R^2$: {config.r2_score[i]:.3f}",
+                color=curve.color,
+                transform=ax1.transAxes,
+                fontsize=config.font_r2,
+            )
         # Store the absolute max of each residual array
         maxes.append(max(np.abs(curve.residuals)))
 
@@ -185,7 +206,7 @@ def inset_fitted_plot(data: Data, config: Config, save_path: str | None = None, 
 
     # Annotate main graph
     ax1.indicate_inset_zoom(ax1_inset, edgecolor="black", alpha=1)
-    ax1.set_title(f"{config.name} | $R^2$: {config.r2_score:.2f}" if config.r2_score is not None else f"{config.name}")
+    ax1.set_title(f"{config.name}")
     ax1.set_xlabel(config.xlabel)
     ax1.set_ylabel(config.ylabel)
     ax1.set_ylim(0, max(data.y_vals) * 1.2)
@@ -201,27 +222,10 @@ def inset_fitted_plot(data: Data, config: Config, save_path: str | None = None, 
     ax2.legend()
     ax2.grid("on")
 
+    # Formatting
     figure1.tight_layout()
 
-    # TODO consider a separate heirarchial_saving function
-    # Save results
-    if save_path:
-        # Make specified output directory
-        os.makedirs(save_path, exist_ok=True)
-
-        # Save decay curve as a png
-        # TODO label each sample with a frequency (likely via kwargs or optional args)
-        if not os.path.exists(f"{save_path}/{config.name}/Decay_Curve.png"):
-            plt.savefig(f"{save_path}/{config.name}/Decay_Curve.png", dpi=300, bbox_inches="tight")
-
-        # Save the raw data as a csv
-        if not os.path.exists(f"{save_path}/{config.name}_Decay_Curve_RawData.csv"):
-            save_as = {f"{config.xlabel}": data.x_vals, f"{config.ylabel}": data.y_vals}
-            df = pd.DataFrame(save_as)
-            df.to_csv(f"{save_path}/{config.name}_Decay_Curve.csv")
-        else:
-            # TODO open data frame, append, and save modified data frame
-            pass
+    return figure1
 
 
-plot_decay(image, None, "FITC_1000Hz_Cryo")
+fig, data = plot_decay(image, "FITC_1000Hz_Cryo", 1.75)
