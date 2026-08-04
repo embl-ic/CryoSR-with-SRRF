@@ -2,6 +2,7 @@
 # 07/13/2026
 # EMBL - Zimmerman Team
 
+import functools
 import os
 import warnings
 from pathlib import Path
@@ -63,9 +64,9 @@ radii_rg = [1, 2, 3, 4, 5]  # List of raddi to try
 
 # * SRRF
 mag = 3  # Upsampling factor
-temporal_correlation = "AVG"  # Correlation method
+temporal_correlation = "VAR"  # Correlation method
 it_w = True  # Toggle intensity weighting
-decorrelation = False  # Uses Decorrelation for resolution when true; else uses FRC for resolution
+decorrelation = True  # Uses Decorrelation for resolution when true; else uses FRC for resolution
 man_sens_idx1 = None  # Mannual overside for sensitivity setting for movie 1
 man_rad_idx1 = None  # Mannual overide for radii setting fo rmovie 1
 man_sens_idx2 = None  # Mannual overside for sensitivity setting for movie 2
@@ -343,7 +344,21 @@ def save_plot(title, img_data, output):
     plt.close()
 
 
+# Define a decorator function to handle exceptions when saving decay data
+def save_or_skip(func):
+    @functools.wraps(func)
+    def save_or_skip_wrapper(raw_data_frame, fitted_data_frame, save_path, sample, name):
+        try:
+            func(raw_data_frame, fitted_data_frame, save_path, sample, name)
+        except ValueError as e:
+            if "already exists" in str(e):
+                warnings.warn(f"Cannot save {name} decay data. Sheet already exists!")
+            else:
+                raise
+
+
 # Define decay file organizer
+@save_or_skip
 def data_as_excel(
     raw_data_frame: pd.DataFrame, fitted_data_frame: pd.DataFrame, save_path: str, sample: str, name: str
 ) -> None:
@@ -414,20 +429,7 @@ if save_results:
     decay_fig1.savefig(f"{save_decay_dir}/{sample1}/{sample1}_{freq1}.png", dpi=300, bbox_inches="tight")
     decay_fig2.savefig(f"{save_decay_dir}/{sample2}/{sample2}_{freq2}.png", dpi=300, bbox_inches="tight")
 
-    """    # Create a .xlsx file if none already exists
-    if not any(Path(f"{save_decay_dir}/{sample1}").glob("*.xlsx")):
-        raw_data1.to_excel(f"{save_decay_dir}/{sample1}/{sample1}_rawdata.xlsx", sheet_name=f"{name1}")
-        fit_data1.to_excel(f"{save_decay_dir}/{sample1}/{sample1}_fitdata.xlsx", sheet_name=f"{name1}")
-
-    else:
-        # Append raw data
-        with pd.ExcelWriter(f"{save_decay_dir}/{sample1}/{sample1}_rawdata.xlsx", mode="a") as writter1:
-            raw_data1.to_excel(writter1, sheet_name=f"{name1}")
-        # Append fitted data
-        with pd.ExcelWriter(f"{save_decay_dir}/{sample1}/{sample1}_fitdata.xlsx", mode="a") as writter2:
-            fit_data1.to_excel(writter2, sheet_name=f"{name1}")
-            """
-
+    # Save data for decay plots
     data_as_excel(raw_data1, fit_data1, save_decay_dir, sample1, name1)
     data_as_excel(raw_data2, fit_data2, save_decay_dir, sample2, name2)
 
