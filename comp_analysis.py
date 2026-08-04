@@ -24,6 +24,7 @@ from decay_curve_plots import plot_decay
 
 # * Mute the double precision GPU warning for my laptop
 warnings.filterwarnings("ignore", category=CompilerWarning)
+warnings.filterwarnings("once", category=UserWarning)
 
 # ? Begin Sample Loading
 # * Fils paths of samples
@@ -355,6 +356,8 @@ def save_or_skip(func):
                 warnings.warn(f"Cannot save {name} decay data. Sheet already exists!")
             else:
                 raise
+
+    return save_or_skip_wrapper
 
 
 # Define decay file organizer
