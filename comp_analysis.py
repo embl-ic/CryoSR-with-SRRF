@@ -27,17 +27,17 @@ warnings.filterwarnings("ignore", category=CompilerWarning)
 # ? Begin Sample Loading
 # * Fils paths of samples
 series1 = "./data_raw/labled_cells/fluctuation_analysis/Cryo/br2_cryo_confocal/br2_cryo_confocal.lif"
-series2 = "./data_raw/labled_cells/fluctuation_analysis/Cryo/br2_cryo_confocal/br2_cryo_confocal.lif"
+series2 = "./data_raw/labled_cells/fluctuation_analysis/RT/Br2-Fluorescein-RT-confocal.lif"
 
 # * Name samples (dye, frequency, temperture)
-sample1 = "Test1"
-freq1 = 6000
+sample1 = "br2_cryo"
+freq1 = 8000
 
-sample2 = "Test2"
-freq2 = 1800
+sample2 = "br2_RT"
+freq2 = 8000
 
 # * If using two series, set equal to True
-two_series = False
+two_series = True
 
 # * Select the indices for two series (index1 = series1 and index2 = series2)
 idx1 = 1
@@ -54,15 +54,15 @@ else:
 
 # ? Begin Parametarizaiton
 # * Drift correction
-drift_avg = 5  # Number of frames averaged to correct drift
+drift_avg = 50  # Number of frames averaged to correct drift
 
 # * Parameter Sweep
 do_sweep = True
-sens_rg = [1, 2]  # List of sensativities to try
-radii_rg = [1]  # List of raddi to try
+sens_rg = [1, 2, 3, 4, 5]  # List of sensativities to try
+radii_rg = [1, 2, 3, 4, 5]  # List of raddi to try
 
 # * SRRF
-mag = 2  # Upsampling factor
+mag = 3  # Upsampling factor
 temporal_correlation = "AVG"  # Correlation method
 it_w = True  # Toggle intensity weighting
 decorrelation = False  # Uses Decorrelation for resolution when true; else uses FRC for resolution
@@ -74,21 +74,23 @@ sr_idx1 = 0  # If batching, select index of the preferred reconstruction (movie 
 sr_idx2 = 0  # If batching, select index of the preferred reconstruction (movie 2)
 
 # * Physical Constants
-pix_size = 108.5  # Pixel size in nanometers
+pix_size = 128.75  # Pixel size in nanometers
 wave = 500  # Wavelength
 max_res = (2 * wave) / pix_size  # Worst possible resolution in pixels (twice the wavelength)
 min_res = wave / (2 * pix_size * mag)  # Best possible resolution in pixels
 
 # * Sample batching and slicing
 start = 0  # First frame to include in analysis
-stop = 25  # Last frame to include in analysis
+stop = 250  # Last frame to include in analysis
 n_batch = None  # Number of frames for super resolution
 
-# * Save individual plots with descriptive titles and filenames for backreference
-save_results = True
+# * Decay Curve plots and data
 calculate_decay = True
 limit1 = 1.75  # Extent of the inset in the decay graph of sample 1
 limit2 = 1.75  # Extent of the inset in the decay graph of sample 2
+
+# * Save individual plots with descriptive titles and filenames for backreference
+save_results = True
 
 # ? Begin movie extraction
 # Extract the appropriate movie
@@ -188,8 +190,8 @@ n_frames = 0 if n_batch is None else n_batch
 movie1_slice = movie1_corr[start:n_batch, :, :] if n_batch is not None else movie1_corr
 movie2_slice = movie2_corr[start:n_batch, :, :] if n_batch is not None else movie2_corr
 
-movie1_avg = np.mean(movie1_slice, axis=0)
-movie2_avg = np.mean(movie2_slice, axis=0)
+movie1_sum = np.sum(movie1_slice, axis=0)
+movie2_sum = np.sum(movie2_slice, axis=0)
 
 # ? Being eSRRF Processing
 essrf1 = eSRRF(
@@ -225,8 +227,8 @@ frc_select2 = pix_size * frc2[sens_idx2, rad_idx2]
 # Compute scores of averaged movies
 if decorrelation:
     # Use Decorrelation Analysis to estiamte resolution
-    avg_res1 = decorr(movie1_avg, pixel_size=pix_size, units="nm")
-    avg_res2 = decorr(movie2_avg, pixel_size=pix_size, units="nm")
+    sum_res1 = decorr(movie1_sum, pixel_size=pix_size, units="nm")
+    sum_res2 = decorr(movie2_sum, pixel_size=pix_size, units="nm")
 
     # Denote resolution measurement for book keeping purposes
     res_type = "Decorr"
@@ -239,8 +241,8 @@ else:
     odd2 = np.mean(movie2_slice[1::2, :, :], axis=0)
 
     # Use Fourier Ring Correlation to estimate resoltion
-    avg_res1 = frc(even1, odd1, pixel_size=pix_size, units="nm")
-    avg_res2 = frc(even2, odd2, pixel_size=pix_size, units="nm")
+    sum_res1 = frc(even1, odd1, pixel_size=pix_size, units="nm")
+    sum_res2 = frc(even2, odd2, pixel_size=pix_size, units="nm")
 
     # Denote resolution measurement for book keeping purposes
     res_type = "FRC"
@@ -279,8 +281,8 @@ if do_sweep:
 # Name plots
 essrf1_plot = f"{name1}: eSRRF of {movie1_slice.shape[0]} frames | UQnR: {uqnr_select1:.3f} | Res: {frc_select1:.2f}nm | RSP: {rsp_select1:.2f}"
 essrf2_plot = f"{name2}: eSRRF of {movie2_slice.shape[0]} frames | UQnR: {uqnr_select2:.3f} | Res: {frc_select2:.2f}nm | RSP: {rsp_select2:.2f}"
-avg1_plot = f"{name1}: Temporal Average of {movie1_slice.shape[0]} frames ({start}-{start + movie1_slice.shape[0]}) | Res: {avg_res1:.2f}nm"
-avg2_plot = f"{name2}: Temporal Average of {movie2_slice.shape[0]} frames ({start}-{start + movie2_slice.shape[0]})| Res: {avg_res2:.2f}nm"
+sum1_plot = f"{name1}: Temporal Sum of {movie1_slice.shape[0]} frames ({start}-{start + movie1_slice.shape[0]}) | Res: {sum_res1:.2f}nm"
+sum2_plot = f"{name2}: Temporal Sum of {movie2_slice.shape[0]} frames ({start}-{start + movie2_slice.shape[0]})| Res: {sum_res2:.2f}nm"
 
 # Insert axis if necessary to handle batching
 essrf1 = np.expand_dims(essrf1, axis=0) if essrf1.ndim == 2 else essrf1
@@ -309,20 +311,20 @@ ax[1].imshow(np.log1p(essrf2[sr_idx2]), cmap="gist_heat")
 ax[1].axis("off")
 ax[1].set_title(essrf2_plot)
 
-ax[2].imshow(movie1_avg, cmap="gist_heat")
+ax[2].imshow(movie1_sum, cmap="gist_heat")
 ax[2].axis("off")
-ax[2].set_title(avg1_plot)
+ax[2].set_title(sum1_plot)
 
-ax[3].imshow(movie2_avg, cmap="gist_heat")
+ax[3].imshow(movie2_sum, cmap="gist_heat")
 ax[3].axis("off")
-ax[3].set_title(avg2_plot)
+ax[3].set_title(sum2_plot)
 figure2.tight_layout()
 
 # Name output files
 essrf1_output = f"{name1}_{ring_radius1}radii_{sensitivity1}sens_{mag}mag_{temporal_correlation}_sridx{sr_idx1}"
 essrf2_output = f"{name2}_{ring_radius2}radii_{sensitivity2}sens_{mag}mag_{temporal_correlation}_sridx{sr_idx2}"
-avg1_output = f"{name1}_t_avg"
-avg2_output = f"{name2}_t_avg"
+sum1_output = f"{name1}_t_sum"
+sum2_output = f"{name2}_t_sum"
 
 save_dir = "./data_analyzed/fluctuation_comparison"
 save_decay_dir = "./data_analyzed/decay_comparison"
@@ -374,10 +376,10 @@ if save_results:
 
     # Create data dictionary
     data = {
-        "names": [essrf1_plot, essrf2_plot, avg1_plot, avg2_plot],
-        "input": [np.log1p(essrf1[sr_idx1]), np.log1p(essrf2[sr_idx1]), movie1_avg, movie2_avg],
-        "output": [essrf1_output, essrf2_output, avg1_output, avg2_output],
-        "series": [essrf1, essrf2, movie1_avg, movie2_avg],
+        "names": [essrf1_plot, essrf2_plot, sum1_plot, sum2_plot],
+        "input": [np.log1p(essrf1[sr_idx1]), np.log1p(essrf2[sr_idx1]), movie1_sum, movie2_sum],
+        "output": [essrf1_output, essrf2_output, sum1_output, sum2_output],
+        "series": [essrf1, essrf2, movie1_sum, movie2_sum],
     }
 
     # Iterate over all data
