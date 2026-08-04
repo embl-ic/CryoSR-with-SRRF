@@ -24,7 +24,6 @@ from decay_curve_plots import plot_decay
 
 # * Mute the double precision GPU warning for my laptop
 warnings.filterwarnings("ignore", category=CompilerWarning)
-warnings.filterwarnings("once", category=UserWarning)
 
 # ? Begin Sample Loading
 # * Fils paths of samples
@@ -56,16 +55,16 @@ else:
 
 # ? Begin Parametarizaiton
 # * Drift correction
-drift_avg = 50  # Number of frames averaged to correct drift
+drift_avg = 5  # Number of frames averaged to correct drift
 
 # * Parameter Sweep
 do_sweep = True
-sens_rg = [1, 2, 3, 4, 5]  # List of sensativities to try
-radii_rg = [1, 2, 3, 4, 5]  # List of raddi to try
+sens_rg = [1]  # List of sensativities to try
+radii_rg = [1, 2]  # List of raddi to try
 
 # * SRRF
-mag = 3  # Upsampling factor
-temporal_correlation = "VAR"  # Correlation method
+mag = 2  # Upsampling factor
+temporal_correlation = "ACRF"  # Correlation method
 it_w = True  # Toggle intensity weighting
 decorrelation = True  # Uses Decorrelation for resolution when true; else uses FRC for resolution
 man_sens_idx1 = None  # Mannual overside for sensitivity setting for movie 1
@@ -83,7 +82,7 @@ min_res = wave / (2 * pix_size * mag)  # Best possible resolution in pixels
 
 # * Sample batching and slicing
 start = 0  # First frame to include in analysis
-stop = 250  # Last frame to include in analysis
+stop = 25  # Last frame to include in analysis
 n_batch = None  # Number of frames for super resolution
 
 # * Decay Curve plots and data
@@ -92,7 +91,7 @@ limit1 = 1.75  # Extent of the inset in the decay graph of sample 1
 limit2 = 1.75  # Extent of the inset in the decay graph of sample 2
 
 # * Save individual plots with descriptive titles and filenames for backreference
-save_results = True
+save_results = False
 
 # ? Begin movie extraction
 # Extract the appropriate movie

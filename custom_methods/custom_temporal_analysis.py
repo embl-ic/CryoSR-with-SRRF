@@ -44,7 +44,7 @@ def calculate_SRRF_temporal_correlations(im: np.array, order: int = 1, do_integr
     return out_array
 
 
-def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str, type: int = 2, lag: bool = True):
+def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str, type: int = 4, lag: bool = True):
     """
     Calculate temporal correlations for enhanced Super-Resolution Radial Fluctuations (eSRRF).
 
@@ -193,7 +193,7 @@ def calculate_acrf_(rad_array, order, do_integrate_lag_times):
 
                 im[t] = np.zeros((height_m, width_m), dtype=np.float32)
 
-                if tbin < n_binned_time_points:
+                if tbin < n_binned_time_points - order:
                     for _t in range(order - 1):
                         im[t] = im[t] + np.divide(im[tbin + _t], order)
                 t = t + 1
