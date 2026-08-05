@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+
 from custom_methods.custom_sweep import ParameterSweep
 
 
@@ -13,6 +14,7 @@ def run_esrrf_parameter_sweep(
     plot_sweep=False,
     return_qnr=False,
     n_frames=None,
+    lag_times: bool = True,
 ):
     """
     Conducts a parameter sweep for enhanced Super-Resolution Radial Fluctuations (eSRRF) analysis on an image.
@@ -57,6 +59,7 @@ def run_esrrf_parameter_sweep(
         temporal_correlation=temporal_correlation,
         use_decorr=use_decorr,
         n_frames=n_frames,
+        acrf_lag_times=lag_times,
     )
 
     if plot_sweep:

@@ -1,11 +1,12 @@
 import numpy as np
-from tqdm import tqdm
-from nanopyx.core.transform.error_map import ErrorMap
-from nanopyx.core.analysis.frc import FIRECalculator
 from nanopyx.core.analysis.decorr import DecorrAnalysis
+from nanopyx.core.analysis.frc import FIRECalculator
 from nanopyx.core.transform._le_esrrf import eSRRF
-from nanopyx.core.transform.sr_temporal_correlations import calculate_eSRRF_temporal_correlations
+from nanopyx.core.transform.error_map import ErrorMap
 from nanopyx.methods.squirrel.resolution import calculate_decorr_analysis
+from tqdm import tqdm
+
+from custom_methods.custom_temporal_analysis import calculate_eSRRF_temporal_correlations
 
 
 # TODO double check this implementation and confirm that this gives the same results as NanoJ-eSRRF
@@ -24,6 +25,7 @@ class ParameterSweep:
         temporal_correlation: str = "AVG",
         use_decorr: bool = False,
         n_frames=None,
+        acrf_lag_times: bool = True,
     ):
         if n_frames is not None:
             if n_frames <= 0:
@@ -47,30 +49,34 @@ class ParameterSweep:
                         )
                         rgc_map = self._as_frame_stack(rgc_map)
                         if self.doErrorMapping:
-                            reconstruction = calculate_eSRRF_temporal_correlations(rgc_map, temporal_correlation)
+                            reconstruction = calculate_eSRRF_temporal_correlations(
+                                rgc_map, temporal_correlation, acrf_lag_times
+                            )
                             RSP_map[s, r] = self.calculate_rsp(im, reconstruction)
                         if self.doFRCMapping:
                             if use_decorr:
                                 decorr = DecorrAnalysis()
                                 decorr.run_analysis(
-                                    calculate_eSRRF_temporal_correlations(rgc_map, temporal_correlation)
+                                    calculate_eSRRF_temporal_correlations(rgc_map, temporal_correlation, acrf_lag_times)
                                 )
                                 FRC_map[s, r] = decorr.resolution
                             else:
                                 rgc_map_odd = rgc_map[1::2, :, :]
                                 rgc_map_even = rgc_map[::2, :, :]
                                 reconstruction_odd = calculate_eSRRF_temporal_correlations(
-                                    rgc_map_odd, temporal_correlation
+                                    rgc_map_odd, temporal_correlation, acrf_lag_times
                                 )
                                 reconstruction_even = calculate_eSRRF_temporal_correlations(
-                                    rgc_map_even, temporal_correlation
+                                    rgc_map_even, temporal_correlation, acrf_lag_times
                                 )
                                 frc_value = self.calculate_frc(reconstruction_odd, reconstruction_even)
 
                                 # Fall back to Decorrelation if FRC fails
                                 if frc_value == 0 or frc_value is None:
                                     FRC_map[s, r] = calculate_decorr_analysis(
-                                        calculate_eSRRF_temporal_correlations(rgc_map, temporal_correlation)
+                                        calculate_eSRRF_temporal_correlations(
+                                            rgc_map, temporal_correlation, acrf_lag_times
+                                        )
                                     )
                                     print(
                                         f"FRC failed for sentivity {sensitivity_array[s]} and radius {radius_array[r]}, falling back to decorrelation..."
@@ -94,24 +100,28 @@ class ParameterSweep:
                             rgc_map = self._as_frame_stack(rgc_map)
 
                             if self.doErrorMapping:
-                                reconstruction = calculate_eSRRF_temporal_correlations(rgc_map, temporal_correlation)
+                                reconstruction = calculate_eSRRF_temporal_correlations(
+                                    rgc_map, temporal_correlation, acrf_lag_times
+                                )
                                 RSP_values.append(self.calculate_rsp(sliced_image, reconstruction))
 
                             if self.doFRCMapping:
                                 if use_decorr:
                                     decorr = DecorrAnalysis()
                                     decorr.run_analysis(
-                                        calculate_eSRRF_temporal_correlations(rgc_map, temporal_correlation)
+                                        calculate_eSRRF_temporal_correlations(
+                                            rgc_map, temporal_correlation, acrf_lag_times
+                                        )
                                     )
                                     FRC_values.append(decorr.resolution)
                                 elif rgc_map.shape[0] >= 2:
                                     rgc_map_odd = rgc_map[1::2, :, :]
                                     rgc_map_even = rgc_map[::2, :, :]
                                     reconstruction_odd = calculate_eSRRF_temporal_correlations(
-                                        rgc_map_odd, temporal_correlation
+                                        rgc_map_odd, temporal_correlation, acrf_lag_times
                                     )
                                     reconstruction_even = calculate_eSRRF_temporal_correlations(
-                                        rgc_map_even, temporal_correlation
+                                        rgc_map_even, temporal_correlation, acrf_lag_times
                                     )
                                     frc_value = self.calculate_frc(reconstruction_odd, reconstruction_even)
 
@@ -119,7 +129,9 @@ class ParameterSweep:
                                     if frc_value == 0 or frc_value is None:
                                         FRC_values.append(
                                             DecorrAnalysis().run_analysis(
-                                                calculate_eSRRF_temporal_correlations(rgc_map, temporal_correlation)
+                                                calculate_eSRRF_temporal_correlations(
+                                                    rgc_map, temporal_correlation, acrf_lag_times
+                                                )
                                             )
                                         )
                                         print(

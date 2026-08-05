@@ -44,7 +44,7 @@ def calculate_SRRF_temporal_correlations(im: np.array, order: int = 1, do_integr
     return out_array
 
 
-def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str, type: int = 4, lag: bool = True):
+def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str, lag: bool):
     """
     Calculate temporal correlations for enhanced Super-Resolution Radial Fluctuations (eSRRF).
 
@@ -73,11 +73,17 @@ def calculate_eSRRF_temporal_correlations(im: np.array, correlation: str, type: 
     elif correlation == "TRPPM":
         out_array = calculate_pairwise_product_sum(im)
 
-    elif correlation == "ACRF":
-        out_array = calculate_acrf_(im, type, lag)
+    elif correlation == "2ndOrderACRF":
+        out_array = calculate_acrf_(im, 2, lag)
+
+    elif correlation == "3rdOrderACRF":
+        out_array = calculate_acrf_(im, 3, lag)
+
+    elif correlation == "4thOrderACRF":
+        out_array = calculate_acrf_(im, 4, lag)
 
     else:
-        raise ValueError("Type of correlation must be AVG, VAR or TAC2")
+        raise ValueError("Type of correlation must be AVG, VAR, TAC2, TRPPM, 2ndOrderACRF, 3rdOrderACRF, 4thOrderACRF")
 
     return out_array
 
@@ -232,7 +238,6 @@ def calculate_tac2(rad_array):
     centered = rad_array - mean  # center data around the mean
     nlag = 1  # number of lags to compute TAC2 for
     out_array = np.mean(centered[:-nlag] * centered[nlag:], axis=0)
-
     return out_array
 
 

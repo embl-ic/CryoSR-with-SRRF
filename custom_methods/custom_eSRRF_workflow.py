@@ -1,8 +1,9 @@
-from nanopyx.methods.workflow import Workflow
+import numpy as np
 from nanopyx.core.transform import eSRRF_ST
 from nanopyx.core.transform.mpcorrector import macro_pixel_corrector
+from nanopyx.methods.workflow import Workflow
+
 from custom_methods.custom_temporal_analysis import calculate_eSRRF_temporal_correlations
-import numpy as np
 
 # TODO check correlations and error map
 
@@ -19,6 +20,7 @@ def eSRRF(
     macro_pixel_correction: bool = True,
     pad_edges: bool = False,
     _force_run_type=None,
+    lag_times: bool = True,
 ):
     """
     Perform eSRRF analysis on an image.
@@ -53,9 +55,7 @@ def eSRRF(
           - Workflow: The class used to define and run analysis workflows.
     """
 
-    if frames_per_timepoint == 0:
-        frames_per_timepoint = image.shape[0]
-    elif frames_per_timepoint > image.shape[0]:
+    if frames_per_timepoint == 0 or frames_per_timepoint > image.shape[0]:
         frames_per_timepoint = image.shape[0]
 
     number_of_timepoints = image.shape[0] // frames_per_timepoint
@@ -92,8 +92,7 @@ def eSRRF(
                 np.expand_dims(
                     np.asarray(
                         calculate_eSRRF_temporal_correlations(
-                            _eSRRF.calculate(_force_run_type=_force_run_type)[0],
-                            temporal_correlation,
+                            _eSRRF.calculate(_force_run_type=_force_run_type)[0], temporal_correlation, lag_times
                         )
                     ),
                     axis=0,
@@ -104,8 +103,7 @@ def eSRRF(
             # Preform Temporal Correlations
             output_array[i] = np.asarray(
                 calculate_eSRRF_temporal_correlations(
-                    _eSRRF.calculate(_force_run_type=_force_run_type)[0],
-                    temporal_correlation,
+                    _eSRRF.calculate(_force_run_type=_force_run_type)[0], temporal_correlation, lag_times
                 )
             )
 
