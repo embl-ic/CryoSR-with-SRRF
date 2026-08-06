@@ -33,7 +33,7 @@ def plot_decay(im: NDArray, name: str, boundry: int) -> tuple[plt.figure, pd.Dat
         # ? Use a linear regression of log(f(x)) to provide intial guess of parameters
 
         # Transform data with a natural log
-        baseline = np.median(intensity)  # Subtract the constant
+        baseline = np.min(crop_intensity)  # Subtract the constant
         mask = crop_intensity - baseline > 0  # Only select values > 0 with a boolean mask
         y_log = crop_intensity[mask]  # Apply mask to the y axis
         x_log = crop_time[mask]  # Apply mask to x axis
@@ -226,6 +226,3 @@ def inset_fitted_plot(data: Data, config: Config, save_path: str | None = None, 
     figure1.tight_layout()
 
     return figure1
-
-
-fig, data = plot_decay(image, "FITC_1000Hz_Cryo", 1.75)
