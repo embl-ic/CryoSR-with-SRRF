@@ -69,7 +69,7 @@ jobs:
           pixi-version: v0.69.0
           
       - name: Export pixi.lock as yml file
-        run: pixi workspace export conda-env > environment.yml 
+        run: pixi workspace export conda-environment > environment.yml 
           
       - name: Run a test command
         run: |
