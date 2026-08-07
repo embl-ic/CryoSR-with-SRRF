@@ -40,8 +40,8 @@ jobs:
     - name: Run a test command
       run: pixi run python -c "print('Pixi environment is healthy')"
 
-  test-conda:
-    # Test conda env on various platforms
+  test-mamba:
+    # Test mamba env on various platforms
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -58,17 +58,25 @@ jobs:
         uses: actions/checkout@v7
           
       - name: Install Conda
-        uses: conda-incubator/setup-miniconda@v3
+        uses: mamba-org/setup-micromamba@v3
         with: 
-          auto-update-conda: true
-          channels: conda-forge
-          conda-remove-defaults: true
+          micromamba-version: latest
+          init-shell: bash
+          cache-environment: true
+          post-cleanup: 'all'
+          
+      - name: Install Pixi for export
+        uses: prefix-dev/setup-pixi@v0.10.1
+        with:
+          pixi-version: v0.69.0
+          
+      - name: Export pixi.lock as yml file
+        run: pixi export conda-env > environment.yml 
           
       - name: Run a test command
         run: |
-          conda create --name test-env --file pixi.lock --format rattler-lock-v6
-          conda activate test-env
-          python -c "print('Conda environment is healthy')"
+          micromamba create --name test-env --file environment.yml
+          micromamba run -n test-env python -c "print('Mamba environment is healthy')"
 
 
 
