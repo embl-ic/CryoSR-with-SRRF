@@ -62,8 +62,6 @@ jobs:
         with: 
           micromamba-version: latest
           init-shell: bash
-          cache-environment: true
-          post-cleanup: 'all'
           
       - name: Install Pixi for export
         uses: prefix-dev/setup-pixi@v0.10.1
