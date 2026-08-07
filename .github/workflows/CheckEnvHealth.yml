@@ -28,7 +28,7 @@ jobs:
     # Steps required to complete the action
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
         
     - name: Install Pixi
       uses: prefix-dev/setup-pixi@v0.10.1
