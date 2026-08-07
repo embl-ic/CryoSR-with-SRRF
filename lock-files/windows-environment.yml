@@ -224,5 +224,4 @@ dependencies:
   - liffile>=2026.7.14, <2027
   - xarray>=2026.7.0, <2027
   - imagecodecs>=2026.6.26, <2027
-  - pixi-sync-environment>=0.3.1, <0.4
   - pywinpty==3.0.3
