@@ -100,8 +100,12 @@ save_decay_dir = "./data_analyzed/decay_comparison"
 
 # ? Begin movie extraction
 # Extract the appropriate movie
-lif_obj1 = lif(series1).images[idx1]
-lif_obj2 = lif(series2).images[idx2]
+if two_series:
+    lif_obj1 = lif(series1).images[idx1]
+    lif_obj2 = lif(series2).images[idx2]
+else:
+    lif_obj1 = lif(series1).images[idx1]
+    lif_obj2 = lif(series1).images[idx2]
 
 # Convert to array, and slice the proper data range
 movie1 = lif_obj1.asarray()[start:stop]

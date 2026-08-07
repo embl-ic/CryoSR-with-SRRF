@@ -8,9 +8,6 @@ from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
 
-# Load test image
-image = lif("./data_raw/labled_cells/fluctuation_analysis/Cryo/br2_cryo_confocal/br2_cryo_confocal.lif").images[2]
-
 
 def plot_decay(im: NDArray, name: str, boundry: int) -> tuple[plt.figure, pd.DataFrame]:
 
