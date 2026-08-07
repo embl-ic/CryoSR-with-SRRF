@@ -61,10 +61,12 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with: 
           auto-update-conda: true
+          channels: conda-forge
+          conda-remove-defaults: true
           
       - name: Run a test command
         run: |
-          conda create --name test-env --file pixi.lock --format pixi
+          conda create --name test-env --file pixi.lock --format rattler-lock-v6
           conda activate test-env
           python -c "print('Conda environment is healthy')"
 
