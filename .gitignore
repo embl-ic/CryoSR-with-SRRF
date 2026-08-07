@@ -24,5 +24,3 @@ Reports/
 #cluster files
 *.png
 *.sh
-*.slurm
-
