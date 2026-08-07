@@ -19,13 +19,13 @@ jobs:
 # The name of the job
   test-pixi:
   
-    # Test env on various platforms
+    # Test pixi env on various platforms
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         
-    # Steps required to complete the action
+    # Steps required to complete the test
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
@@ -39,3 +39,36 @@ jobs:
 
     - name: Run a test command
       run: pixi run python -c "print('Pixi environment is healthy')"
+
+  test-conda:
+    # Test conda env on various platforms
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    # Ensure that actions are run in non-base env    
+    defaults:
+      run:
+        shell: bash -el {0}
+
+      # Steps required to complete the test
+    steps: 
+      - name: Checkout code 
+        uses: actions/checkout@v7
+          
+      - name: Install Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with: 
+          auto-update-conda: true
+          
+      - name: Run a test command
+        run: |
+          conda create --name test-env --file pixi.lock --format pixi
+          conda activate test-env
+          python -c "print('Conda environment is healthy')"
+
+
+
+
+
